@@ -9,10 +9,17 @@ router.get('/', (req, res) => {
     const folders = folderModel.getAllFolders()
     const documents = documentModel.getAllDocuments()
     
+    const isNullValue = (val) => val === null || val === undefined
+    
     const buildTree = (parentId) => {
       const children = []
       
-      const childFolders = folders.filter(f => f.parent_id === parentId)
+      const childFolders = folders.filter(f => {
+        if (isNullValue(parentId)) {
+          return isNullValue(f.parent_id)
+        }
+        return f.parent_id === parentId
+      })
       childFolders.sort((a, b) => a.sort - b.sort)
       
       for (const folder of childFolders) {
@@ -20,7 +27,7 @@ router.get('/', (req, res) => {
           id: folder.id,
           name: folder.name,
           type: 'folder',
-          parentId: folder.parent_id,
+          parentId: isNullValue(folder.parent_id) ? null : folder.parent_id,
           sort: folder.sort,
           children: buildTree(folder.id),
           isExpanded: false,
@@ -28,7 +35,12 @@ router.get('/', (req, res) => {
         })
       }
       
-      const childDocs = documents.filter(d => d.folder_id === parentId)
+      const childDocs = documents.filter(d => {
+        if (isNullValue(parentId)) {
+          return isNullValue(d.folder_id)
+        }
+        return d.folder_id === parentId
+      })
       childDocs.sort((a, b) => a.sort - b.sort)
       
       for (const doc of childDocs) {
@@ -36,7 +48,7 @@ router.get('/', (req, res) => {
           id: doc.id,
           name: doc.title,
           type: 'document',
-          parentId: doc.folder_id,
+          parentId: isNullValue(doc.folder_id) ? null : doc.folder_id,
           sort: doc.sort,
           children: [],
           isExpanded: false,
