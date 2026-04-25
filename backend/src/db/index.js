@@ -12,6 +12,15 @@ const dbPath = path.join(dataDir, 'knowledge.db')
 let db = null
 let dbReady = false
 
+function normalizeRow(row) {
+  if (!row) return row
+  const normalized = {}
+  for (const [key, value] of Object.entries(row)) {
+    normalized[key] = value === undefined ? null : value
+  }
+  return normalized
+}
+
 console.log('=== 数据库配置 ===')
 console.log('数据目录:', dataDir)
 console.log('数据库路径:', dbPath)
@@ -122,7 +131,7 @@ function get(sql, params = []) {
   if (stmt.step()) {
     const row = stmt.getAsObject()
     stmt.free()
-    return row
+    return normalizeRow(row)
   }
   stmt.free()
   return undefined
@@ -137,7 +146,7 @@ function all(sql, params = []) {
   stmt.bind(params)
   const results = []
   while (stmt.step()) {
-    results.push(stmt.getAsObject())
+    results.push(normalizeRow(stmt.getAsObject()))
   }
   stmt.free()
   return results
