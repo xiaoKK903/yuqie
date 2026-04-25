@@ -1,4 +1,4 @@
-import { run, get, all } from '../db/index.js'
+import { run, get, all, getDb } from '../db/index.js'
 
 const getAllFolders = () => {
   return all('SELECT * FROM folders ORDER BY sort, id')
@@ -16,23 +16,39 @@ const getFoldersByParentId = (parentId) => {
 }
 
 const createFolder = (name, parentId) => {
-  const maxSortResult = get(
-    'SELECT MAX(sort) as max_sort FROM folders WHERE parent_id IS ?',
-    [parentId === null ? null : parentId]
-  )
+  const parentIdValue = parentId === null || parentId === undefined ? null : parentId
   
-  const maxSort = maxSortResult?.max_sort ?? -1
+  let maxSort = -1
+  if (parentIdValue === null) {
+    const maxSortResult = get('SELECT MAX(sort) as max_sort FROM folders WHERE parent_id IS NULL')
+    maxSort = maxSortResult?.max_sort ?? -1
+  } else {
+    const maxSortResult = get('SELECT MAX(sort) as max_sort FROM folders WHERE parent_id = ?', [parentIdValue])
+    maxSort = maxSortResult?.max_sort ?? -1
+  }
+  
   const sort = maxSort + 1
-  
   const now = new Date().toISOString()
   
   run(
     'INSERT INTO folders (name, parent_id, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-    [name, parentId, sort, now, now]
+    [name, parentIdValue, sort, now, now]
   )
   
-  const lastIdResult = get('SELECT last_insert_rowid() as id')
-  const lastId = lastIdResult?.id
+  const db = getDb()
+  const result = db.exec('SELECT last_insert_rowid() as id')
+  let lastId = null
+  if (result && result.length > 0 && result[0].values && result[0].values.length > 0) {
+    lastId = result[0].values[0][0]
+  }
+  
+  if (!lastId) {
+    const allFolders = getAllFolders()
+    const created = allFolders.find(f => f.name === name && f.sort === sort)
+    if (created) {
+      lastId = created.id
+    }
+  }
   
   return getFolderById(lastId)
 }
@@ -55,7 +71,8 @@ const updateFolder = (id, updates) => {
   
   const now = new Date().toISOString()
   setClauses.push('updated_at = ?')
-  values.push(now, id)
+  values.push(now)
+  values.push(id)
   
   run(`UPDATE folders SET ${setClauses.join(', ')} WHERE id = ?`, values)
   
@@ -74,6 +91,10 @@ const deleteFolder = (id) => {
   }
   
   const allFolderIds = [id, ...getAllDescendantFolderIds(id)]
+  
+  if (allFolderIds.length === 0) {
+    return true
+  }
   
   const placeholders = allFolderIds.map(() => '?').join(',')
   

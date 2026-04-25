@@ -1,4 +1,4 @@
-import { run, get, all } from '../db/index.js'
+import { run, get, all, getDb } from '../db/index.js'
 
 const getAllDocuments = () => {
   return all('SELECT * FROM documents ORDER BY sort, id')
@@ -16,23 +16,39 @@ const getDocumentsByFolderId = (folderId) => {
 }
 
 const createDocument = (title, folderId, content = '') => {
-  const maxSortResult = get(
-    'SELECT MAX(sort) as max_sort FROM documents WHERE folder_id IS ?',
-    [folderId === null ? null : folderId]
-  )
+  const folderIdValue = folderId === null || folderId === undefined ? null : folderId
   
-  const maxSort = maxSortResult?.max_sort ?? -1
+  let maxSort = -1
+  if (folderIdValue === null) {
+    const maxSortResult = get('SELECT MAX(sort) as max_sort FROM documents WHERE folder_id IS NULL')
+    maxSort = maxSortResult?.max_sort ?? -1
+  } else {
+    const maxSortResult = get('SELECT MAX(sort) as max_sort FROM documents WHERE folder_id = ?', [folderIdValue])
+    maxSort = maxSortResult?.max_sort ?? -1
+  }
+  
   const sort = maxSort + 1
-  
   const now = new Date().toISOString()
   
   run(
     'INSERT INTO documents (title, folder_id, content, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-    [title, folderId, content, sort, now, now]
+    [title, folderIdValue, content, sort, now, now]
   )
   
-  const lastIdResult = get('SELECT last_insert_rowid() as id')
-  const lastId = lastIdResult?.id
+  const db = getDb()
+  const result = db.exec('SELECT last_insert_rowid() as id')
+  let lastId = null
+  if (result && result.length > 0 && result[0].values && result[0].values.length > 0) {
+    lastId = result[0].values[0][0]
+  }
+  
+  if (!lastId) {
+    const allDocs = getAllDocuments()
+    const created = allDocs.find(d => d.title === title && d.sort === sort)
+    if (created) {
+      lastId = created.id
+    }
+  }
   
   return getDocumentById(lastId)
 }
@@ -55,7 +71,8 @@ const updateDocument = (id, updates) => {
   
   const now = new Date().toISOString()
   setClauses.push('updated_at = ?')
-  values.push(now, id)
+  values.push(now)
+  values.push(id)
   
   run(`UPDATE documents SET ${setClauses.join(', ')} WHERE id = ?`, values)
   
@@ -63,8 +80,8 @@ const updateDocument = (id, updates) => {
 }
 
 const deleteDocument = (id) => {
-  const result = run('DELETE FROM documents WHERE id = ?', [id])
-  return result
+  run('DELETE FROM documents WHERE id = ?', [id])
+  return true
 }
 
 const updateSortValues = (folderId) => {

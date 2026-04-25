@@ -14,6 +14,7 @@ if (!fs.existsSync(dataDir)) {
 }
 
 let db = null
+let dbReady = false
 
 async function initDb() {
   const SQL = await initSqlJs()
@@ -50,6 +51,7 @@ async function initDb() {
     )
   `)
   
+  dbReady = true
   saveDb()
   console.log('数据库初始化完成')
 }
@@ -63,12 +65,18 @@ function saveDb() {
 }
 
 function run(sql, params = []) {
+  if (!db) {
+    throw new Error('数据库未初始化')
+  }
   const result = db.run(sql, params)
   saveDb()
   return result
 }
 
 function get(sql, params = []) {
+  if (!db) {
+    throw new Error('数据库未初始化')
+  }
   const stmt = db.prepare(sql)
   stmt.bind(params)
   if (stmt.step()) {
@@ -81,6 +89,9 @@ function get(sql, params = []) {
 }
 
 function all(sql, params = []) {
+  if (!db) {
+    throw new Error('数据库未初始化')
+  }
   const stmt = db.prepare(sql)
   stmt.bind(params)
   const results = []
@@ -91,4 +102,12 @@ function all(sql, params = []) {
   return results
 }
 
-export { initDb, db, saveDb, run, get, all }
+function getDb() {
+  return db
+}
+
+function isDbReady() {
+  return dbReady
+}
+
+export { initDb, getDb, isDbReady, saveDb, run, get, all }
