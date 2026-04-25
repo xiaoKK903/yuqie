@@ -108,6 +108,11 @@ import type { TreeNode as TreeNodeType } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 
+marked.use({
+  gfm: true,
+  breaks: true,
+})
+
 const store = useKnowledgeStore()
 const { treeData, currentDocument, loading } = storeToRefs(store)
 const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode } = store
@@ -126,7 +131,7 @@ const contextMenu = ref({
 
 const renderedContent = computed(() => {
   try {
-    return marked(editContent.value)
+    return marked.parse(editContent.value || '') as string
   } catch {
     return ''
   }
@@ -520,5 +525,126 @@ onMounted(() => {
 
 .preview-pane {
   background-color: #fff;
+}
+</style>
+
+<style lang="scss">
+.preview-pane .markdown-body {
+  color: #333;
+  line-height: 1.8;
+  
+  h1, h2, h3, h4, h5, h6 {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  
+  h1 {
+    font-size: 2em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid #eaecef;
+  }
+  
+  h2 {
+    font-size: 1.5em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid #eaecef;
+  }
+  
+  h3 {
+    font-size: 1.25em;
+  }
+  
+  p {
+    margin-top: 0;
+    margin-bottom: 16px;
+  }
+  
+  ul, ol {
+    margin-top: 0;
+    margin-bottom: 16px;
+    padding-left: 2em;
+  }
+  
+  li {
+    margin-bottom: 4px;
+  }
+  
+  code {
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    background-color: #f6f8fa;
+    border-radius: 3px;
+  }
+  
+  pre {
+    padding: 16px;
+    overflow: auto;
+    font-size: 85%;
+    line-height: 1.45;
+    background-color: #f6f8fa;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    
+    code {
+      padding: 0;
+      background: transparent;
+    }
+  }
+  
+  blockquote {
+    padding: 0 1em;
+    color: #6a737d;
+    border-left: 0.25em solid #dfe2e5;
+    margin: 0 0 16px;
+  }
+  
+  table {
+    border-spacing: 0;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    width: 100%;
+    
+    th, td {
+      padding: 6px 13px;
+      border: 1px solid #dfe2e5;
+    }
+    
+    th {
+      font-weight: 600;
+      background-color: #f6f8fa;
+    }
+  }
+  
+  a {
+    color: #0366d6;
+    text-decoration: none;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  
+  img {
+    max-width: 100%;
+  }
+  
+  hr {
+    height: 0.25em;
+    padding: 0;
+    margin: 24px 0;
+    background-color: #e1e4e8;
+    border: 0;
+  }
+  
+  strong {
+    font-weight: 600;
+  }
+  
+  em {
+    font-style: italic;
+  }
 }
 </style>

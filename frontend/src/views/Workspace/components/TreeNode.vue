@@ -5,6 +5,9 @@
       'is-active': node.isActive,
       'is-dragging': isDragging,
       'is-drop-indicator': dropIndicator,
+      'drop-before': dropIndicator === 'before',
+      'drop-after': dropIndicator === 'after',
+      'drop-inside': dropIndicator === 'inside',
     }"
   >
     <div
@@ -99,10 +102,16 @@ const isEmpty = computed(() => {
   return !props.node.children || props.node.children.length === 0
 })
 
-let draggedData: {
-  id: number
-  type: 'folder' | 'document'
-} | null = null
+function getDraggedData(e: DragEvent): { id: number; type: 'folder' | 'document' } | null {
+  if (!e.dataTransfer) return null
+  const data = e.dataTransfer.getData('application/tree-node')
+  if (!data) return null
+  try {
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
+}
 
 function handleClick() {
   emit('select', props.node)
@@ -142,22 +151,23 @@ function handleChildDrop(params: {
 
 function handleDragStart(e: DragEvent) {
   isDragging.value = true
-  draggedData = {
+  const data = {
     id: props.node.id,
     type: props.node.type,
   }
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('application/tree-node', JSON.stringify(data))
   }
 }
 
 function handleDragEnd() {
   isDragging.value = false
   dropIndicator.value = null
-  draggedData = null
 }
 
 function handleDragOver(e: DragEvent) {
+  const draggedData = getDraggedData(e)
   if (!draggedData || draggedData.id === props.node.id) {
     return
   }
@@ -194,7 +204,8 @@ function handleDragLeave() {
   dropIndicator.value = null
 }
 
-function handleDrop() {
+function handleDrop(e: DragEvent) {
+  const draggedData = getDraggedData(e)
   if (!draggedData || !dropIndicator.value) {
     return
   }
@@ -235,18 +246,6 @@ function isDescendant(folderId: number, ancestorId: number): boolean {
 <style lang="scss" scoped>
 .tree-node {
   position: relative;
-  
-  &.is-drop-indicator {
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background-color: #409eff;
-      z-index: 10;
-    }
-  }
 }
 
 .tree-node-content {
@@ -268,6 +267,37 @@ function isDescendant(folderId: number, ancestorId: number): boolean {
 
 .tree-node.is-dragging {
   opacity: 0.5;
+}
+
+.tree-node.drop-before {
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background-color: #409eff;
+    z-index: 10;
+  }
+}
+
+.tree-node.drop-after {
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background-color: #409eff;
+    z-index: 10;
+  }
+}
+
+.tree-node.drop-inside .tree-node-content {
+  outline: 2px solid #409eff;
+  outline-offset: -2px;
 }
 
 .tree-node-indent {
