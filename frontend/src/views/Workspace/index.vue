@@ -94,6 +94,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   FolderAdd,
@@ -108,7 +109,8 @@ import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 
 const store = useKnowledgeStore()
-const { treeData, currentDocument, loading, fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand } = store
+const { treeData, currentDocument, loading } = storeToRefs(store)
+const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode } = store
 
 const searchKeyword = ref('')
 const editTitle = ref('')
@@ -132,9 +134,9 @@ const renderedContent = computed(() => {
 
 const filteredTreeData = computed(() => {
   if (!searchKeyword.value) return treeData.value
-  
+
   const keyword = searchKeyword.value.toLowerCase()
-  
+
   const filterNodes = (nodes: TreeNodeType[]): TreeNodeType[] => {
     return nodes.filter(node => {
       const matched = node.name.toLowerCase().includes(keyword)
@@ -145,7 +147,7 @@ const filteredTreeData = computed(() => {
       return matched
     })
   }
-  
+
   return filterNodes(JSON.parse(JSON.stringify(treeData.value)))
 })
 
