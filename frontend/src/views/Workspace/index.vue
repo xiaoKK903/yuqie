@@ -103,7 +103,7 @@ import {
 import { marked } from 'marked'
 import { useKnowledgeStore } from '@/store/knowledge'
 import { folderApi, documentApi, treeApi } from '@/api'
-import type { TreeNode } from '@/types'
+import type { TreeNode as TreeNodeType } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 
@@ -118,7 +118,7 @@ const contextMenu = ref({
   visible: false,
   x: 0,
   y: 0,
-  node: null as TreeNode | null,
+  node: null as TreeNodeType | null,
   isRoot: false,
 })
 
@@ -135,7 +135,7 @@ const filteredTreeData = computed(() => {
   
   const keyword = searchKeyword.value.toLowerCase()
   
-  const filterNodes = (nodes: TreeNode[]): TreeNode[] => {
+  const filterNodes = (nodes: TreeNodeType[]): TreeNodeType[] => {
     return nodes.filter(node => {
       const matched = node.name.toLowerCase().includes(keyword)
       if (node.children && node.children.length > 0) {
@@ -155,7 +155,7 @@ function formatTime(time: string) {
 
 function handleSearch() {
   if (searchKeyword.value) {
-    const expandAll = (nodes: TreeNode[]) => {
+    const expandAll = (nodes: TreeNodeType[]) => {
       for (const node of nodes) {
         node.isExpanded = true
         if (node.children && node.children.length > 0) {
@@ -167,14 +167,14 @@ function handleSearch() {
   }
 }
 
-function handleNodeSelect(node: TreeNode) {
+function handleNodeSelect(node: TreeNodeType) {
   store.setActiveNode(node)
   if (node.type === 'document') {
     loadDocument(node.id)
   }
 }
 
-function handleToggle(node: TreeNode) {
+function handleToggle(node: TreeNodeType) {
   toggleExpand(node)
 }
 
@@ -188,7 +188,7 @@ function handleRootContextMenu(e: MouseEvent) {
   }
 }
 
-function handleContextMenu({ e, node }: { e: MouseEvent; node: TreeNode }) {
+function handleContextMenu({ e, node }: { e: MouseEvent; node: TreeNodeType }) {
   contextMenu.value = {
     visible: true,
     x: e.clientX,
@@ -198,7 +198,7 @@ function handleContextMenu({ e, node }: { e: MouseEvent; node: TreeNode }) {
   }
 }
 
-async function handleAddFolder(parentNode: TreeNode | null) {
+async function handleAddFolder(parentNode: TreeNodeType | null) {
   try {
     const { value: name } = await ElMessageBox.prompt('请输入文件夹名称', '新建文件夹', {
       confirmButtonText: '确定',
@@ -222,7 +222,7 @@ async function handleAddFolder(parentNode: TreeNode | null) {
   }
 }
 
-async function handleAddDocument(parentNode: TreeNode | null) {
+async function handleAddDocument(parentNode: TreeNodeType | null) {
   try {
     const { value: title } = await ElMessageBox.prompt('请输入文档名称', '新建文档', {
       confirmButtonText: '确定',
@@ -261,7 +261,7 @@ function addRootDocument() {
   handleAddDocument(null)
 }
 
-async function handleRename(node: TreeNode) {
+async function handleRename(node: TreeNodeType) {
   try {
     const oldName = node.name
     const { value: newName } = await ElMessageBox.prompt('请输入新名称', '重命名', {
@@ -285,7 +285,7 @@ async function handleRename(node: TreeNode) {
   }
 }
 
-async function handleDelete(node: TreeNode) {
+async function handleDelete(node: TreeNodeType) {
   const typeText = node.type === 'folder' ? '文件夹' : '文档'
   const childrenCount = node.children ? node.children.length : 0
   let message = `确定要删除「${node.name}」吗？`
