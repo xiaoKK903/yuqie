@@ -58,10 +58,12 @@
         <div class="doc-content">
           <div class="editor-pane">
             <textarea
+              ref="editorRef"
               v-model="editContent"
               class="markdown-editor"
               placeholder="开始编写文档，支持 Markdown 语法..."
               @input="handleContentChange"
+              @keydown="handleKeyDown"
             />
           </div>
           <div class="preview-pane">
@@ -101,22 +103,36 @@ import {
   DocumentAdd,
   Loading,
 } from '@element-plus/icons-vue'
-import { marked } from 'marked'
+import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github.css'
 import { useKnowledgeStore } from '@/store/knowledge'
 import { folderApi, documentApi, treeApi } from '@/api'
 import type { TreeNode as TreeNodeType } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 
-marked.use({
-  gfm: true,
+const md = new MarkdownIt({
+  html: true,
   breaks: true,
+  linkify: true,
+  highlight: function (str: string, lang: string) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return '<pre class="hljs"><code>' +
+          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+          '</code></pre>'
+      } catch (__) {}
+    }
+    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+  }
 })
 
 const store = useKnowledgeStore()
 const { treeData, currentDocument, loading, activeNode } = storeToRefs(store)
 const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode } = store
 
+const editorRef = ref<HTMLTextAreaElement | null>(null)
 const searchKeyword = ref('')
 const editTitle = ref('')
 const editContent = ref('')
@@ -131,8 +147,9 @@ const contextMenu = ref({
 
 const renderedContent = computed(() => {
   try {
-    return marked.parse(editContent.value || '') as string
-  } catch {
+    return md.render(editContent.value || '')
+  } catch (error) {
+    console.error('Markdown 渲染错误:', error)
     return ''
   }
 })
@@ -416,6 +433,52 @@ function handleContentChange() {
   }, 2000)
 }
 
+function handleKeyDown(e: KeyboardEvent) {
+  const textarea = e.target as HTMLTextAreaElement
+  const value = editContent.value
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  
+  if (e.key === 'Enter') {
+    const lines = value.substring(0, start).split('\n')
+    const currentLine = lines[lines.length - 1] || ''
+    
+    const codeBlockMatch = currentLine.match(/^```(\w*)$/)
+    if (codeBlockMatch && end === start) {
+      e.preventDefault()
+      const lang = codeBlockMatch[1] || ''
+      const newContent = value.substring(0, start) + '\n\n```' + value.substring(end)
+      editContent.value = newContent
+      
+      nextTick(() => {
+        if (editorRef.value) {
+          const newCursorPos = start + 1
+          editorRef.value.selectionStart = newCursorPos
+          editorRef.value.selectionEnd = newCursorPos
+          editorRef.value.focus()
+        }
+      })
+      
+      ElMessage.info(lang ? `已创建 ${lang} 代码块` : '已创建代码块，可指定语言如 ```javascript')
+      return
+    }
+  }
+  
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const tabSpace = '  '
+    editContent.value = value.substring(0, start) + tabSpace + value.substring(end)
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        const newPos = start + tabSpace.length
+        editorRef.value.selectionStart = newPos
+        editorRef.value.selectionEnd = newPos
+      }
+    })
+  }
+}
+
 watch(currentDocument, (doc) => {
   if (doc) {
     editContent.value = doc.content
@@ -536,6 +599,8 @@ onMounted(() => {
   font-size: 14px;
   line-height: 1.8;
   color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .preview-pane {
@@ -607,6 +672,11 @@ onMounted(() => {
       padding: 0;
       background: transparent;
     }
+  }
+  
+  pre.hljs {
+    background-color: #f6f8fa;
+    border-radius: 6px;
   }
   
   blockquote {
