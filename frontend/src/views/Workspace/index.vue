@@ -114,7 +114,7 @@ marked.use({
 })
 
 const store = useKnowledgeStore()
-const { treeData, currentDocument, loading } = storeToRefs(store)
+const { treeData, currentDocument, loading, activeNode } = storeToRefs(store)
 const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode } = store
 
 const searchKeyword = ref('')
@@ -175,6 +175,7 @@ function handleSearch() {
 }
 
 function handleNodeSelect(node: TreeNodeType) {
+  console.log('[handleNodeSelect] 选中节点:', node)
   store.setActiveNode(node)
   if (node.type === 'document') {
     loadDocument(node.id)
@@ -206,6 +207,7 @@ function handleContextMenu({ e, node }: { e: MouseEvent; node: TreeNodeType }) {
 }
 
 async function handleAddFolder(parentNode: TreeNodeType | null) {
+  console.log('[handleAddFolder] parentNode:', parentNode)
   try {
     const { value: name } = await ElMessageBox.prompt('请输入文件夹名称', '新建文件夹', {
       confirmButtonText: '确定',
@@ -213,6 +215,8 @@ async function handleAddFolder(parentNode: TreeNodeType | null) {
       inputPattern: /.+/,
       inputErrorMessage: '文件夹名称不能为空',
     })
+    
+    console.log('[handleAddFolder] 创建文件夹, name:', name, 'parentId:', parentNode ? parentNode.id : null)
     
     await folderApi.create({
       name,
@@ -230,6 +234,7 @@ async function handleAddFolder(parentNode: TreeNodeType | null) {
 }
 
 async function handleAddDocument(parentNode: TreeNodeType | null) {
+  console.log('[handleAddDocument] parentNode:', parentNode)
   try {
     const { value: title } = await ElMessageBox.prompt('请输入文档名称', '新建文档', {
       confirmButtonText: '确定',
@@ -237,6 +242,8 @@ async function handleAddDocument(parentNode: TreeNodeType | null) {
       inputPattern: /.+/,
       inputErrorMessage: '文档名称不能为空',
     })
+    
+    console.log('[handleAddDocument] 创建文档, title:', title, 'folderId:', parentNode ? parentNode.id : null)
     
     const res = await documentApi.create({
       title,
@@ -261,11 +268,19 @@ async function handleAddDocument(parentNode: TreeNodeType | null) {
 }
 
 function addRootFolder() {
-  handleAddFolder(null)
+  console.log('[addRootFolder] activeNode.value:', activeNode.value)
+  console.log('[addRootFolder] activeNode.value?.type:', activeNode.value?.type)
+  const parentNode = activeNode.value?.type === 'folder' ? activeNode.value : null
+  console.log('[addRootFolder] parentNode:', parentNode)
+  handleAddFolder(parentNode)
 }
 
 function addRootDocument() {
-  handleAddDocument(null)
+  console.log('[addRootDocument] activeNode.value:', activeNode.value)
+  console.log('[addRootDocument] activeNode.value?.type:', activeNode.value?.type)
+  const parentNode = activeNode.value?.type === 'folder' ? activeNode.value : null
+  console.log('[addRootDocument] parentNode:', parentNode)
+  handleAddDocument(parentNode)
 }
 
 async function handleRename(node: TreeNodeType) {
