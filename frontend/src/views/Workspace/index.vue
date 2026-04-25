@@ -10,7 +10,7 @@
           @input="handleSearch"
         />
       </div>
-      <div class="toolbar">
+      <div class="sidebar-toolbar">
         <el-button text :icon="FolderAdd" @click="addRootFolder">
           新建文件夹
         </el-button>
@@ -55,24 +55,180 @@
             <span>最后更新: {{ formatTime(currentDocument.updatedAt) }}</span>
           </div>
         </div>
+        
         <div class="editor-toolbar">
-          <el-button-group>
-            <el-button text @click="insertHeading(1)">H1</el-button>
-            <el-button text @click="insertHeading(2)">H2</el-button>
-            <el-button text @click="insertHeading(3)">H3</el-button>
-            <el-button text @click="insertBold"><strong>B</strong></el-button>
-            <el-button text @click="insertItalic"><em>I</em></el-button>
-            <el-button text @click="insertCodeBlock">代码块</el-button>
-            <el-button text @click="insertList">列表</el-button>
-            <el-button text @click="insertQuote">引用</el-button>
-          </el-button-group>
+          <div class="toolbar-group">
+            <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom">
+              <el-button 
+                text 
+                :disabled="!canUndo" 
+                @click="handleUndo"
+                class="toolbar-btn"
+              >
+                <el-icon><ArrowLeft /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="重做 (Ctrl+Y)" placement="bottom">
+              <el-button 
+                text 
+                :disabled="!canRedo" 
+                @click="handleRedo"
+                class="toolbar-btn"
+              >
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-select 
+              v-model="fontFamily" 
+              placeholder="字体" 
+              clearable 
+              style="width: 120px;"
+              size="small"
+              @change="handleFontFamilyChange"
+            >
+              <el-option label="默认字体" value="default" />
+              <el-option label="宋体" value="SimSun" />
+              <el-option label="微软雅黑" value="Microsoft YaHei" />
+              <el-option label="黑体" value="SimHei" />
+              <el-option label="楷体" value="KaiTi" />
+              <el-option label="等宽字体" value="monospace" />
+            </el-select>
+          </div>
+          
+          <div class="toolbar-group">
+            <el-select 
+              v-model="fontSize" 
+              placeholder="字号"
+              size="small"
+              style="width: 80px;"
+              @change="handleFontSizeChange"
+            >
+              <el-option label="10" :value="10" />
+              <el-option label="12" :value="12" />
+              <el-option label="13" :value="13" />
+              <el-option label="14" :value="14" />
+              <el-option label="16" :value="16" />
+              <el-option label="18" :value="18" />
+              <el-option label="20" :value="20" />
+              <el-option label="24" :value="24" />
+              <el-option label="28" :value="28" />
+              <el-option label="32" :value="32" />
+              <el-option label="36" :value="36" />
+              <el-option label="48" :value="48" />
+              <el-option label="64" :value="64" />
+              <el-option label="72" :value="72" />
+            </el-select>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-tooltip content="加粗 (Ctrl+B)" placement="bottom">
+              <el-button 
+                text 
+                @click="handleBold"
+                class="toolbar-btn format-btn"
+              >
+                <strong>B</strong>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="斜体 (Ctrl+I)" placement="bottom">
+              <el-button 
+                text 
+                @click="handleItalic"
+                class="toolbar-btn format-btn"
+              >
+                <em>I</em>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="删除线" placement="bottom">
+              <el-button 
+                text 
+                @click="handleStrikethrough"
+                class="toolbar-btn format-btn"
+              >
+                <span style="text-decoration: line-through;">S</span>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="下划线 (Ctrl+U)" placement="bottom">
+              <el-button 
+                text 
+                @click="handleUnderline"
+                class="toolbar-btn format-btn"
+              >
+                <span style="text-decoration: underline;">U</span>
+              </el-button>
+            </el-tooltip>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-tooltip content="标题 H1" placement="bottom">
+              <el-button text @click="insertHeading(1)" class="toolbar-btn">
+                <span style="font-size: 18px; font-weight: bold;">H1</span>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="标题 H2" placement="bottom">
+              <el-button text @click="insertHeading(2)" class="toolbar-btn">
+                <span style="font-size: 16px; font-weight: bold;">H2</span>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="标题 H3" placement="bottom">
+              <el-button text @click="insertHeading(3)" class="toolbar-btn">
+                <span style="font-size: 14px; font-weight: bold;">H3</span>
+              </el-button>
+            </el-tooltip>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-tooltip content="代码块" placement="bottom">
+              <el-button text @click="insertCodeBlock" class="toolbar-btn">
+                <el-icon><Share /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="无序列表" placement="bottom">
+              <el-button text @click="insertList" class="toolbar-btn">
+                <el-icon><List /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="有序列表" placement="bottom">
+              <el-button text @click="insertOrderedList" class="toolbar-btn">
+                <el-icon><Operation /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="引用" placement="bottom">
+              <el-button text @click="insertQuote" class="toolbar-btn">
+                <el-icon><ChatDotRound /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="链接" placement="bottom">
+              <el-button text @click="insertLink" class="toolbar-btn">
+                <el-icon><Link /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="分割线" placement="bottom">
+              <el-button text @click="insertHR" class="toolbar-btn">
+                <el-icon><Minus /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </div>
         </div>
+        
         <div class="doc-content">
           <div class="editor-pane">
             <textarea
               ref="editorRef"
               v-model="editContent"
               class="markdown-editor"
+              :style="editorStyle"
               placeholder="开始编写文档，支持 Markdown 语法...&#10;&#10;示例：&#10;# 一级标题&#10;## 二级标题&#10;**粗体文字**&#10;*斜体文字*&#10;&#10;输入 ``` 并回车可创建代码块"
               @input="handleContentChange"
               @keydown="handleKeyDown"
@@ -81,7 +237,7 @@
             />
           </div>
           <div class="preview-pane">
-            <div class="markdown-body" v-html="renderedContent"></div>
+            <div class="markdown-body" :style="previewStyle" v-html="renderedContent"></div>
           </div>
         </div>
       </template>
@@ -116,6 +272,14 @@ import {
   FolderAdd,
   DocumentAdd,
   Loading,
+  ArrowLeft,
+  ArrowRight,
+  List,
+  Operation,
+  ChatDotRound,
+  Link,
+  Minus,
+  Share,
 } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -125,6 +289,12 @@ import { folderApi, documentApi, treeApi } from '@/api'
 import type { TreeNode as TreeNodeType } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
+
+interface HistoryItem {
+  content: string
+  cursorStart: number
+  cursorEnd: number
+}
 
 const md = new MarkdownIt({
   html: true,
@@ -154,6 +324,13 @@ const isEditingTitle = ref(false)
 const cursorStart = ref(0)
 const cursorEnd = ref(0)
 
+const fontFamily = ref('default')
+const fontSize = ref(14)
+
+const historyStack = ref<HistoryItem[]>([])
+const historyIndex = ref(-1)
+const isHistoryAction = ref(false)
+
 const contextMenu = ref({
   visible: false,
   x: 0,
@@ -161,6 +338,18 @@ const contextMenu = ref({
   node: null as TreeNodeType | null,
   isRoot: false,
 })
+
+const canUndo = computed(() => historyIndex.value > 0)
+const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1)
+
+const editorStyle = computed(() => ({
+  fontSize: `${fontSize.value}px`,
+  fontFamily: fontFamily.value === 'default' ? 'inherit' : fontFamily.value,
+}))
+
+const previewStyle = computed(() => ({
+  fontSize: `${fontSize.value}px`,
+}))
 
 const renderedContent = computed(() => {
   const content = editContent.value || ''
@@ -438,7 +627,86 @@ function cancelEditTitle() {
 
 let saveTimer: number | null = null
 
+function saveCursorPosition() {
+  if (editorRef.value) {
+    cursorStart.value = editorRef.value.selectionStart
+    cursorEnd.value = editorRef.value.selectionEnd
+  }
+}
+
+function saveToHistory() {
+  if (isHistoryAction.value) return
+  
+  if (historyIndex.value < historyStack.value.length - 1) {
+    historyStack.value = historyStack.value.slice(0, historyIndex.value + 1)
+  }
+  
+  saveCursorPosition()
+  
+  historyStack.value.push({
+    content: editContent.value,
+    cursorStart: cursorStart.value,
+    cursorEnd: cursorEnd.value,
+  })
+  
+  if (historyStack.value.length > 50) {
+    historyStack.value.shift()
+  } else {
+    historyIndex.value = historyStack.value.length - 1
+  }
+}
+
+function handleUndo() {
+  if (!canUndo.value) return
+  
+  isHistoryAction.value = true
+  
+  historyIndex.value--
+  const item = historyStack.value[historyIndex.value]
+  
+  if (item) {
+    editContent.value = item.content
+    cursorStart.value = item.cursorStart
+    cursorEnd.value = item.cursorEnd
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = cursorStart.value
+        editorRef.value.selectionEnd = cursorEnd.value
+      }
+      isHistoryAction.value = false
+    })
+  }
+}
+
+function handleRedo() {
+  if (!canRedo.value) return
+  
+  isHistoryAction.value = true
+  
+  historyIndex.value++
+  const item = historyStack.value[historyIndex.value]
+  
+  if (item) {
+    editContent.value = item.content
+    cursorStart.value = item.cursorStart
+    cursorEnd.value = item.cursorEnd
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = cursorStart.value
+        editorRef.value.selectionEnd = cursorEnd.value
+      }
+      isHistoryAction.value = false
+    })
+  }
+}
+
 function handleContentChange() {
+  saveToHistory()
+  
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
@@ -450,13 +718,6 @@ function handleContentChange() {
       })
     }
   }, 2000)
-}
-
-function saveCursorPosition() {
-  if (editorRef.value) {
-    cursorStart.value = editorRef.value.selectionStart
-    cursorEnd.value = editorRef.value.selectionEnd
-  }
 }
 
 function insertTextAtCursor(text: string, selectLength: number = 0) {
@@ -484,70 +745,79 @@ function insertTextAtCursor(text: string, selectLength: number = 0) {
   })
 }
 
+function wrapWithTag(beforeTag: string, afterTag: string, defaultText: string) {
+  saveCursorPosition()
+  
+  const start = cursorStart.value
+  const end = cursorEnd.value
+  const currentText = editContent.value
+  
+  const before = currentText.substring(0, start)
+  const selected = currentText.substring(start, end)
+  const after = currentText.substring(end)
+  
+  const text = selected || defaultText
+  editContent.value = before + beforeTag + text + afterTag + after
+  
+  const newStart = start + beforeTag.length
+  const newEnd = start + beforeTag.length + text.length
+  
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus()
+      editorRef.value.selectionStart = newStart
+      editorRef.value.selectionEnd = newEnd
+      cursorStart.value = newStart
+      cursorEnd.value = newEnd
+    }
+  })
+}
+
+function handleBold() {
+  wrapWithTag('**', '**', '粗体文字')
+}
+
+function handleItalic() {
+  wrapWithTag('*', '*', '斜体文字')
+}
+
+function handleStrikethrough() {
+  wrapWithTag('~~', '~~', '删除线文字')
+}
+
+function handleUnderline() {
+  wrapWithTag('<u>', '</u>', '下划线文字')
+}
+
+function handleFontFamilyChange() {
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus()
+    }
+  })
+}
+
+function handleFontSizeChange() {
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus()
+    }
+  })
+}
+
 function insertHeading(level: number) {
   const prefix = '#'.repeat(level) + ' '
   const text = prefix + '标题'
   insertTextAtCursor(text, prefix.length)
 }
 
-function insertBold() {
-  saveCursorPosition()
-  
-  const start = cursorStart.value
-  const end = cursorEnd.value
-  const currentText = editContent.value
-  
-  const before = currentText.substring(0, start)
-  const selected = currentText.substring(start, end)
-  const after = currentText.substring(end)
-  
-  const text = selected || '粗体'
-  editContent.value = before + '**' + text + '**' + after
-  
-  const newStart = start + 2
-  const newEnd = start + 2 + text.length
-  
-  nextTick(() => {
-    if (editorRef.value) {
-      editorRef.value.focus()
-      editorRef.value.selectionStart = newStart
-      editorRef.value.selectionEnd = newEnd
-      cursorStart.value = newStart
-      cursorEnd.value = newEnd
-    }
-  })
-}
-
-function insertItalic() {
-  saveCursorPosition()
-  
-  const start = cursorStart.value
-  const end = cursorEnd.value
-  const currentText = editContent.value
-  
-  const before = currentText.substring(0, start)
-  const selected = currentText.substring(start, end)
-  const after = currentText.substring(end)
-  
-  const text = selected || '斜体'
-  editContent.value = before + '*' + text + '*' + after
-  
-  const newStart = start + 1
-  const newEnd = start + 1 + text.length
-  
-  nextTick(() => {
-    if (editorRef.value) {
-      editorRef.value.focus()
-      editorRef.value.selectionStart = newStart
-      editorRef.value.selectionEnd = newEnd
-      cursorStart.value = newStart
-      cursorEnd.value = newEnd
-    }
-  })
-}
-
 function insertList() {
   const text = '\n- 列表项1\n- 列表项2\n- 列表项3'
+  insertTextAtCursor(text, text.length)
+}
+
+function insertOrderedList() {
+  const text = '\n1. 列表项1\n2. 列表项2\n3. 列表项3'
   insertTextAtCursor(text, text.length)
 }
 
@@ -561,11 +831,91 @@ function insertCodeBlock() {
   insertTextAtCursor(text, text.length)
 }
 
+async function insertLink() {
+  try {
+    const { value: url } = await ElMessageBox.prompt('请输入链接地址', '插入链接', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputValue: 'https://',
+      inputPattern: /.+/,
+      inputErrorMessage: '链接地址不能为空',
+    })
+    
+    saveCursorPosition()
+    
+    const start = cursorStart.value
+    const end = cursorEnd.value
+    const currentText = editContent.value
+    
+    const before = currentText.substring(0, start)
+    const selected = currentText.substring(start, end)
+    const after = currentText.substring(end)
+    
+    const linkText = selected || '链接文字'
+    const link = `[${linkText}](${url})`
+    
+    editContent.value = before + link + after
+    
+    const newStart = start + 1
+    const newEnd = start + 1 + linkText.length
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = newStart
+        editorRef.value.selectionEnd = newEnd
+        cursorStart.value = newStart
+        cursorEnd.value = newEnd
+      }
+    })
+  } catch {
+    // 用户取消
+  }
+}
+
+function insertHR() {
+  const text = '\n---\n'
+  insertTextAtCursor(text, text.length)
+}
+
 function handleKeyDown(e: KeyboardEvent) {
   const textarea = e.target as HTMLTextAreaElement
   const value = editContent.value
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
+  
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'z' && !e.shiftKey) {
+      e.preventDefault()
+      handleUndo()
+      return
+    }
+    if (e.key === 'z' && e.shiftKey) {
+      e.preventDefault()
+      handleRedo()
+      return
+    }
+    if (e.key === 'y') {
+      e.preventDefault()
+      handleRedo()
+      return
+    }
+    if (e.key === 'b') {
+      e.preventDefault()
+      handleBold()
+      return
+    }
+    if (e.key === 'i') {
+      e.preventDefault()
+      handleItalic()
+      return
+    }
+    if (e.key === 'u') {
+      e.preventDefault()
+      handleUnderline()
+      return
+    }
+  }
   
   if (e.key === 'Enter') {
     const lines = value.substring(0, start).split('\n')
@@ -623,6 +973,13 @@ watch(currentDocument, (doc) => {
   if (doc) {
     editContent.value = doc.content
     console.log('[文档切换] 加载内容:', JSON.stringify(doc.content?.substring(0, 100)))
+    
+    historyStack.value = [{
+      content: doc.content || '',
+      cursorStart: 0,
+      cursorEnd: 0,
+    }]
+    historyIndex.value = 0
   }
 })
 
@@ -653,7 +1010,7 @@ onMounted(() => {
   border-bottom: 1px solid #e4e7ed;
 }
 
-.toolbar {
+.sidebar-toolbar {
   padding: 8px 12px;
   border-bottom: 1px solid #e4e7ed;
   display: flex;
@@ -712,9 +1069,60 @@ onMounted(() => {
 }
 
 .editor-toolbar {
-  padding: 8px 32px;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
   border-bottom: 1px solid #e4e7ed;
-  background-color: #fafafa;
+  background-color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background-color: #e4e7ed;
+  margin: 0 8px;
+}
+
+.toolbar-btn {
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  
+  &:hover:not(:disabled) {
+    background-color: #f5f7fa;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.format-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  
+  strong, em, span {
+    font-size: 14px;
+    font-family: 'Times New Roman', serif;
+  }
 }
 
 .doc-content {
@@ -750,6 +1158,7 @@ onMounted(() => {
   white-space: pre-wrap;
   word-wrap: break-word;
   box-sizing: border-box;
+  transition: font-size 0.2s;
 }
 
 .preview-pane {
@@ -764,6 +1173,7 @@ onMounted(() => {
   font-size: 15px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   word-wrap: break-word;
+  transition: font-size 0.2s;
   
   h1, h2, h3, h4, h5, h6 {
     margin-top: 24px;
@@ -905,6 +1315,10 @@ onMounted(() => {
   
   del {
     text-decoration: line-through;
+  }
+  
+  u {
+    text-decoration: underline;
   }
 }
 </style>
