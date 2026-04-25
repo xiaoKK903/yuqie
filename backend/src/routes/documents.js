@@ -65,6 +65,11 @@ router.post('/', (req, res) => {
   try {
     const { title, folderId, content = '' } = req.body
     
+    console.log('[创建文档] 收到请求:')
+    console.log('  - title:', title)
+    console.log('  - folderId:', folderId, '类型:', typeof folderId)
+    console.log('  - req.body:', JSON.stringify(req.body))
+    
     if (!title || title.trim() === '') {
       return res.status(400).json({
         success: false,
@@ -73,13 +78,16 @@ router.post('/', (req, res) => {
     }
     
     if (folderId !== undefined && folderId !== null) {
+      console.log('[创建文档] 检查父文件夹, folderId:', folderId)
       const folder = folderModel.getFolderById(parseInt(folderId))
       if (!folder) {
+        console.log('[创建文档] 父文件夹不存在')
         return res.status(404).json({
           success: false,
           message: '文件夹不存在',
         })
       }
+      console.log('[创建文档] 找到父文件夹:', folder)
     }
     
     const document = documentModel.createDocument(
@@ -87,6 +95,8 @@ router.post('/', (req, res) => {
       folderId === null || folderId === undefined ? null : parseInt(folderId),
       content
     )
+    
+    console.log('[创建文档] 创建成功:', document)
     
     res.json({
       success: true,

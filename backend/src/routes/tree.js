@@ -79,112 +79,173 @@ router.post('/move', (req, res) => {
       })
     }
     
-    let newParentId = null
-    let newSort = 0
+    let oldParentId = null
+    if (sourceType === 'folder') {
+      const sourceFolder = folderModel.getFolderById(sourceId)
+      if (!sourceFolder) {
+        return res.status(404).json({
+          success: false,
+          message: '源文件夹不存在',
+        })
+      }
+      oldParentId = sourceFolder.parent_id
+    } else {
+      const sourceDoc = documentModel.getDocumentById(sourceId)
+      if (!sourceDoc) {
+        return res.status(404).json({
+          success: false,
+          message: '源文档不存在',
+        })
+      }
+      oldParentId = sourceDoc.folder_id
+    }
+    
+    if (sourceType === 'folder' && targetType === 'folder' && targetId !== null) {
+      if (folderModel.isDescendantOf(targetId, sourceId)) {
+        throw new Error('不能将文件夹移动到其子文件夹中')
+      }
+    }
     
     if (targetId === null) {
       if (sourceType === 'folder') {
         const folders = folderModel.getFoldersByParentId(null)
-        newSort = folders.length
+        const newSort = folders.length
         folderModel.updateFolder(sourceId, { parent_id: null, sort: newSort })
       } else {
         const docs = documentModel.getDocumentsByFolderId(null)
-        newSort = docs.length
+        const newSort = docs.length
         documentModel.updateDocument(sourceId, { folder_id: null, sort: newSort })
       }
-    } else {
-      if (sourceType === 'folder' && targetType === 'folder') {
-        if (folderModel.isDescendantOf(targetId, sourceId)) {
-          throw new Error('不能将文件夹移动到其子文件夹中')
-        }
-      }
       
+      if (sourceType === 'folder') {
+        folderModel.updateSortValues(oldParentId)
+        folderModel.updateSortValues(null)
+      } else {
+        documentModel.updateSortValues(oldParentId)
+        documentModel.updateSortValues(null)
+      }
+    } else {
       if (position === 'inside') {
         if (targetType === 'folder') {
           if (sourceType === 'folder') {
             const childFolders = folderModel.getFoldersByParentId(targetId)
-            newSort = childFolders.length
+            const newSort = childFolders.length
             folderModel.updateFolder(sourceId, { parent_id: targetId, sort: newSort })
           } else {
             const childDocs = documentModel.getDocumentsByFolderId(targetId)
-            newSort = childDocs.length
+            const newSort = childDocs.length
             documentModel.updateDocument(sourceId, { folder_id: targetId, sort: newSort })
+          }
+          
+          if (sourceType === 'folder') {
+            folderModel.updateSortValues(oldParentId)
+            folderModel.updateSortValues(targetId)
+          } else {
+            documentModel.updateSortValues(oldParentId)
+            documentModel.updateSortValues(targetId)
           }
         }
       } else {
         let targetParentId = null
-        let targetSort = 0
         
         if (targetType === 'folder') {
           const targetFolder = folderModel.getFolderById(targetId)
           if (targetFolder) {
             targetParentId = targetFolder.parent_id
-            targetSort = targetFolder.sort
           }
         } else {
           const targetDoc = documentModel.getDocumentById(targetId)
           if (targetDoc) {
             targetParentId = targetDoc.folder_id
-            targetSort = targetDoc.sort
           }
         }
         
-        const oldParentId = sourceType === 'folder'
-          ? folderModel.getFolderById(sourceId)?.parent_id
-          : documentModel.getDocumentById(sourceId)?.folder_id
-        
-        let siblings = []
         if (targetParentId === oldParentId) {
+          let siblings = []
           if (sourceType === 'folder') {
             siblings = folderModel.getFoldersByParentId(targetParentId)
           } else {
             siblings = documentModel.getDocumentsByFolderId(targetParentId)
           }
           
-          const sourceNode = siblings.find(s => s.id === sourceId)
           const sourceIndex = siblings.findIndex(s => s.id === sourceId)
           
-          if (position === 'before') {
-            if (sourceIndex < targetSort) {
-              newSort = targetSort - 1
-            } else {
-              newSort = targetSort
-            }
-          } else {
-            if (sourceIndex < targetSort) {
-              newSort = targetSort
-            } else {
-              newSort = targetSort + 1
-            }
+          const targetIndex = siblings.findIndex(s => s.id === targetId)
+          
+          if (sourceIndex === -1 || targetIndex === -1) {
+            throw new Error('节点不存在')
           }
           
-          if (sourceType === 'folder') {
-            folderModel.updateFolder(sourceId, { sort: newSort })
-            folderModel.updateSortValues(targetParentId)
-          } else {
-            documentModel.updateDocument(sourceId, { sort: newSort })
-            documentModel.updateSortValues(targetParentId)
+          const [removed] = siblings.splice(sourceIndex, 1)
+          
+          let insertIndex = targetIndex
+          if (sourceIndex < targetIndex) {
+            insertIndex = targetIndex - 1
           }
+          
+          if (position === 'before') {
+            siblings.splice(insertIndex, 0, removed)
+          } else {
+            siblings.splice(insertIndex + 1, 0, removed)
+          }
+          
+          siblings.forEach((node, index) => {
+            if (sourceType === 'folder') {
+              folderModel.updateFolder(node.id, { sort: index })
+            } else {
+              documentModel.updateDocument(node.id, { sort: index })
+            }
+          })
         } else {
+          let oldSiblings = []
+          if (sourceType === 'folder') {
+            oldSiblings = folderModel.getFoldersByParentId(oldParentId)
+          } else {
+            oldSiblings = documentModel.getDocumentsByFolderId(oldParentId)
+          }
+          
+          let newSiblings = []
+          if (sourceType === 'folder') {
+            newSiblings = folderModel.getFoldersByParentId(targetParentId)
+          } else {
+            newSiblings = documentModel.getDocumentsByFolderId(targetParentId)
+          }
+          
+          const targetIndex = newSiblings.findIndex(s => s.id === targetId)
+          
           if (sourceType === 'folder') {
             folderModel.updateFolder(sourceId, { parent_id: targetParentId })
-            if (position === 'before') {
-              newSort = targetSort
-            } else {
-              newSort = targetSort + 1
-            }
-            folderModel.updateFolder(sourceId, { sort: newSort })
-            folderModel.updateSortValues(targetParentId)
           } else {
             documentModel.updateDocument(sourceId, { folder_id: targetParentId })
-            if (position === 'before') {
-              newSort = targetSort
-            } else {
-              newSort = targetSort + 1
-            }
-            documentModel.updateDocument(sourceId, { sort: newSort })
-            documentModel.updateSortValues(targetParentId)
           }
+          
+          oldSiblings = oldSiblings.filter(s => s.id !== sourceId)
+          oldSiblings.forEach((node, index) => {
+            if (sourceType === 'folder') {
+              folderModel.updateFolder(node.id, { sort: index })
+            } else {
+              documentModel.updateDocument(node.id, { sort: index })
+            }
+          })
+          
+          const sourceNode = sourceType === 'folder'
+            ? folderModel.getFolderById(sourceId)
+            : documentModel.getDocumentById(sourceId)
+          
+          let insertIndex = targetIndex
+          if (position === 'after') {
+            insertIndex = targetIndex + 1
+          }
+          
+          newSiblings.splice(insertIndex, 0, sourceNode)
+          
+          newSiblings.forEach((node, index) => {
+            if (sourceType === 'folder') {
+              folderModel.updateFolder(node.id, { sort: index })
+            } else {
+              documentModel.updateDocument(node.id, { sort: index })
+            }
+          })
         }
       }
     }
