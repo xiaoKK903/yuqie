@@ -1,22 +1,32 @@
-import { run, get, all, getDb } from '../db/index.js'
+import { run, get, all, insertAndGetId, saveDb } from '../db/index.js'
 
 const getAllDocuments = () => {
-  return all('SELECT * FROM documents ORDER BY sort, id')
+  const result = all('SELECT * FROM documents ORDER BY sort, id')
+  console.log('[getAllDocuments] 结果:', result)
+  return result
 }
 
 const getDocumentById = (id) => {
-  return get('SELECT * FROM documents WHERE id = ?', [id])
+  const result = get('SELECT * FROM documents WHERE id = ?', [id])
+  console.log('[getDocumentById] id:', id, '结果:', result)
+  return result
 }
 
 const getDocumentsByFolderId = (folderId) => {
   if (folderId === null || folderId === undefined) {
-    return all('SELECT * FROM documents WHERE folder_id IS NULL ORDER BY sort, id')
+    const result = all('SELECT * FROM documents WHERE folder_id IS NULL ORDER BY sort, id')
+    console.log('[getDocumentsByFolderId] folderId: null, 结果:', result)
+    return result
   }
-  return all('SELECT * FROM documents WHERE folder_id = ? ORDER BY sort, id', [folderId])
+  const result = all('SELECT * FROM documents WHERE folder_id = ? ORDER BY sort, id', [folderId])
+  console.log('[getDocumentsByFolderId] folderId:', folderId, '结果:', result)
+  return result
 }
 
 const createDocument = (title, folderId, content = '') => {
   const folderIdValue = folderId === null || folderId === undefined ? null : folderId
+  
+  console.log('[createDocument] title:', title, 'folderId:', folderIdValue, 'content:', content.substring(0, 50))
   
   let maxSort = -1
   if (folderIdValue === null) {
@@ -30,30 +40,21 @@ const createDocument = (title, folderId, content = '') => {
   const sort = maxSort + 1
   const now = new Date().toISOString()
   
-  run(
+  console.log('[createDocument] 执行 INSERT, sort:', sort)
+  
+  const newDoc = insertAndGetId(
+    'documents',
     'INSERT INTO documents (title, folder_id, content, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
     [title, folderIdValue, content, sort, now, now]
   )
   
-  const db = getDb()
-  const result = db.exec('SELECT last_insert_rowid() as id')
-  let lastId = null
-  if (result && result.length > 0 && result[0].values && result[0].values.length > 0) {
-    lastId = result[0].values[0][0]
-  }
-  
-  if (!lastId) {
-    const allDocs = getAllDocuments()
-    const created = allDocs.find(d => d.title === title && d.sort === sort)
-    if (created) {
-      lastId = created.id
-    }
-  }
-  
-  return getDocumentById(lastId)
+  console.log('[createDocument] 新创建的文档:', newDoc)
+  return newDoc
 }
 
 const updateDocument = (id, updates) => {
+  console.log('[updateDocument] id:', id, 'updates:', updates)
+  
   const allowedFields = ['title', 'content', 'folder_id', 'sort']
   const setClauses = []
   const values = []
@@ -80,6 +81,7 @@ const updateDocument = (id, updates) => {
 }
 
 const deleteDocument = (id) => {
+  console.log('[deleteDocument] id:', id)
   run('DELETE FROM documents WHERE id = ?', [id])
   return true
 }

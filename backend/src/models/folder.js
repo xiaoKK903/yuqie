@@ -1,22 +1,32 @@
-import { run, get, all, getDb } from '../db/index.js'
+import { run, get, all, insertAndGetId, saveDb } from '../db/index.js'
 
 const getAllFolders = () => {
-  return all('SELECT * FROM folders ORDER BY sort, id')
+  const result = all('SELECT * FROM folders ORDER BY sort, id')
+  console.log('[getAllFolders] 结果:', result)
+  return result
 }
 
 const getFolderById = (id) => {
-  return get('SELECT * FROM folders WHERE id = ?', [id])
+  const result = get('SELECT * FROM folders WHERE id = ?', [id])
+  console.log('[getFolderById] id:', id, '结果:', result)
+  return result
 }
 
 const getFoldersByParentId = (parentId) => {
   if (parentId === null || parentId === undefined) {
-    return all('SELECT * FROM folders WHERE parent_id IS NULL ORDER BY sort, id')
+    const result = all('SELECT * FROM folders WHERE parent_id IS NULL ORDER BY sort, id')
+    console.log('[getFoldersByParentId] parentId: null, 结果:', result)
+    return result
   }
-  return all('SELECT * FROM folders WHERE parent_id = ? ORDER BY sort, id', [parentId])
+  const result = all('SELECT * FROM folders WHERE parent_id = ? ORDER BY sort, id', [parentId])
+  console.log('[getFoldersByParentId] parentId:', parentId, '结果:', result)
+  return result
 }
 
 const createFolder = (name, parentId) => {
   const parentIdValue = parentId === null || parentId === undefined ? null : parentId
+  
+  console.log('[createFolder] name:', name, 'parentId:', parentIdValue)
   
   let maxSort = -1
   if (parentIdValue === null) {
@@ -30,30 +40,21 @@ const createFolder = (name, parentId) => {
   const sort = maxSort + 1
   const now = new Date().toISOString()
   
-  run(
+  console.log('[createFolder] 执行 INSERT, sort:', sort)
+  
+  const newFolder = insertAndGetId(
+    'folders',
     'INSERT INTO folders (name, parent_id, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
     [name, parentIdValue, sort, now, now]
   )
   
-  const db = getDb()
-  const result = db.exec('SELECT last_insert_rowid() as id')
-  let lastId = null
-  if (result && result.length > 0 && result[0].values && result[0].values.length > 0) {
-    lastId = result[0].values[0][0]
-  }
-  
-  if (!lastId) {
-    const allFolders = getAllFolders()
-    const created = allFolders.find(f => f.name === name && f.sort === sort)
-    if (created) {
-      lastId = created.id
-    }
-  }
-  
-  return getFolderById(lastId)
+  console.log('[createFolder] 新创建的文件夹:', newFolder)
+  return newFolder
 }
 
 const updateFolder = (id, updates) => {
+  console.log('[updateFolder] id:', id, 'updates:', updates)
+  
   const allowedFields = ['name', 'parent_id', 'sort']
   const setClauses = []
   const values = []
@@ -80,6 +81,8 @@ const updateFolder = (id, updates) => {
 }
 
 const deleteFolder = (id) => {
+  console.log('[deleteFolder] id:', id)
+  
   const getAllDescendantFolderIds = (folderId) => {
     const ids = []
     const children = getFoldersByParentId(folderId)
@@ -91,6 +94,7 @@ const deleteFolder = (id) => {
   }
   
   const allFolderIds = [id, ...getAllDescendantFolderIds(id)]
+  console.log('[deleteFolder] 所有要删除的文件夹 ID:', allFolderIds)
   
   if (allFolderIds.length === 0) {
     return true
@@ -98,7 +102,10 @@ const deleteFolder = (id) => {
   
   const placeholders = allFolderIds.map(() => '?').join(',')
   
+  console.log('[deleteFolder] 删除相关文档...')
   run(`DELETE FROM documents WHERE folder_id IN (${placeholders})`, allFolderIds)
+  
+  console.log('[deleteFolder] 删除文件夹...')
   run(`DELETE FROM folders WHERE id IN (${placeholders})`, allFolderIds)
   
   return true
