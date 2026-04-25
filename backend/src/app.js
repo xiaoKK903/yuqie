@@ -11,7 +11,7 @@ import { initDb } from './db/index.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const dataDir = join(__dirname, '../data')
+const dataDir = join(__dirname, '../../data')
 
 async function startServer() {
   await initDb()
