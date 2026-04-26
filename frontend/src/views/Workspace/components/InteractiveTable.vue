@@ -1,265 +1,149 @@
 <template>
-  <div class="interactive-table-wrapper">
-    <InteractiveTableToolbar
-      @addColumn="handleAddColumn"
-      @addRow="handleAddRow"
-    />
+  <div class="interactive-table-wrapper" ref="wrapperRef">
+    <div class="table-toolbar">
+      <div class="toolbar-left">
+        <el-button text class="toolbar-btn" @click="handleAddRow">
+          <el-icon><Plus /></el-icon>
+          <span>添加行</span>
+        </el-button>
+        <el-button text class="toolbar-btn" @click="handleAddColumn">
+          <el-icon><Plus /></el-icon>
+          <span>添加列</span>
+        </el-button>
+      </div>
+      
+      <div class="toolbar-right">
+        <el-button text class="toolbar-btn" @click="handleDeleteTable">
+          <el-icon><Delete /></el-icon>
+          <span>删除表格</span>
+        </el-button>
+      </div>
+    </div>
     
-    <div class="table-container" ref="tableContainerRef">
-      <div class="table-scroll-horizontal" ref="scrollHorizontalRef">
-        <div class="table-body-wrapper">
-          <table class="interactive-table" :style="{ width: totalWidth + 'px' }">
-            <thead>
-              <tr>
-                <th class="table-header-cell checkbox-header" style="width: 50px;">
-                  <el-checkbox v-model="selectAllRows" @change="handleSelectAll" />
-                </th>
-                <th
-                  v-for="(col, colIndex) in tableData.columns"
-                  :key="col.id"
-                  class="table-header-cell"
-                  :style="{ width: col.width + 'px' }"
-                >
-                  <div class="header-content">
-                    <span class="field-type-icon" @click.stop="toggleFieldTypeMenu(col.id)">
-                      <el-icon v-if="col.fieldType === 'text'"><Edit /></el-icon>
-                      <el-icon v-else-if="col.fieldType === 'select'"><CircleCheck /></el-icon>
-                      <el-icon v-else-if="col.fieldType === 'date'"><Calendar /></el-icon>
-                      <el-icon v-else-if="col.fieldType === 'checkbox'"><CheckBox /></el-icon>
-                    </span>
-                    <span 
-                      class="header-title"
-                      @click.stop="startEditHeader(col.id)"
-                    >
-                      <template v-if="editingColumnId === col.id">
-                        <el-input
-                          v-model="editingColumnTitle"
-                          size="small"
-                          @blur="saveHeaderEdit(col.id)"
-                          @keyup.enter="saveHeaderEdit(col.id)"
-                        />
-                      </template>
-                      <template v-else>{{ col.title }}</template>
-                    </span>
-                    <span class="header-menu" @click.stop="showColumnMenu(col.id, $event)">
-                      <el-icon><MoreFilled /></el-icon>
-                    </span>
-                  </div>
-                  <div 
-                    class="column-resize-handle"
-                    @mousedown="startResizeColumn(col.id, $event)"
-                  />
-                </th>
-                <th class="table-header-cell add-column-header" @click="handleAddColumn">
-                  <el-icon><Plus /></el-icon>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, rowIndex) in tableData.rows"
-                :key="row.id"
-                class="table-row"
-                :class="{ 
-                  'row-selected': selectedRowIds.includes(row.id),
-                  'row-hovered': hoveredRowId === row.id
-                }"
-                @mouseenter="hoveredRowId = row.id"
-                @mouseleave="hoveredRowId = null"
+    <div class="table-container">
+      <div class="table-scroll-horizontal" ref="scrollContainerRef">
+        <table class="interactive-table" :style="{ width: tableWidth + 'px' }">
+          <thead>
+            <tr>
+              <th class="table-header-cell checkbox-header" style="width: 50px;">
+                <el-checkbox v-model="selectAll" @change="handleSelectAll" />
+              </th>
+              <th
+                v-for="(col, colIndex) in tableData.columns"
+                :key="col.id"
+                class="table-header-cell"
+                :style="{ width: col.width + 'px' }"
               >
-                <td 
-                  class="table-cell checkbox-cell" 
-                  style="width: 50px;"
-                  @click.stop="toggleRowSelection(row.id)"
-                >
-                  <span class="row-index">{{ rowIndex + 1 }}</span>
-                </td>
-                <td
-                  v-for="col in tableData.columns"
-                  :key="col.id"
-                  class="table-cell"
-                  :class="{
-                    'cell-selected': isCellSelected(row.id, col.id),
-                    'cell-editing': editingCell?.rowId === row.id && editingCell?.colId === col.id
-                  }"
-                  :style="{ width: col.width + 'px' }"
-                  @click="handleCellClick(row.id, col.id, $event)"
-                  @dblclick="handleCellDblClick(row.id, col.id)"
-                >
-                  <template v-if="editingCell?.rowId === row.id && editingCell?.colId === col.id">
+                <div class="header-content">
+                  <span class="header-title" @dblclick="startEditHeader(colIndex)">
+                    <template v-if="editingColIndex === colIndex">
+                      <el-input
+                        v-model="editingTitle"
+                        size="small"
+                        @blur="saveHeaderEdit(colIndex)"
+                        @keyup.enter="saveHeaderEdit(colIndex)"
+                      />
+                    </template>
+                    <template v-else>{{ col.title }}</template>
+                  </span>
+                  <span class="field-type-badge">{{ getFieldTypeLabel(col.fieldType) }}</span>
+                </div>
+                <div 
+                  class="column-resize-handle"
+                  @mousedown="startResizeColumn(colIndex, $event)"
+                />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, rowIndex) in tableData.rows"
+              :key="row.id"
+              class="table-row"
+              :class="{ 'row-selected': selectedRowIndices.includes(rowIndex) }"
+              @click="handleRowClick(rowIndex, $event)"
+            >
+              <td class="table-cell checkbox-cell" style="width: 50px;">
+                <span class="row-number">{{ rowIndex + 1 }}</span>
+              </td>
+              <td
+                v-for="(col, colIndex) in tableData.columns"
+                :key="col.id"
+                class="table-cell"
+                :class="{ 'cell-editing': editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex }"
+                :style="{ width: col.width + 'px' }"
+                @click="handleCellClick(rowIndex, colIndex, $event)"
+                @dblclick="handleCellDblClick(rowIndex, colIndex)"
+              >
+                <template v-if="editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex">
+                  <template v-if="col.fieldType === 'text'">
                     <el-input
-                      v-if="col.fieldType === 'text'"
-                      v-model="editingCellValue"
+                      v-model="editingValue"
                       size="small"
                       @blur="saveCellEdit"
                       @keyup.enter="saveCellEdit"
                     />
+                  </template>
+                  <template v-else-if="col.fieldType === 'select'">
                     <el-select
-                      v-else-if="col.fieldType === 'select'"
-                      v-model="editingCellValue"
+                      v-model="editingValue"
                       size="small"
                       @change="saveCellEdit"
-                      :clearable="true"
+                      clearable
                     >
                       <el-option
-                        v-for="opt in (col.selectOptions || ['选项1', '选项2'])"
+                        v-for="opt in (col.selectOptions || ['选项1', '选项2', '选项3'])"
                         :key="opt"
                         :label="opt"
                         :value="opt"
                       />
                     </el-select>
+                  </template>
+                  <template v-else-if="col.fieldType === 'date'">
                     <el-date-picker
-                      v-else-if="col.fieldType === 'date'"
-                      v-model="editingCellValue"
+                      v-model="editingValue"
                       type="date"
                       size="small"
                       @change="saveCellEdit"
                       value-format="YYYY-MM-DD"
-                      placeholder="选择日期"
                     />
+                  </template>
+                  <template v-else-if="col.fieldType === 'checkbox'">
                     <el-checkbox
-                      v-else-if="col.fieldType === 'checkbox'"
-                      v-model="editingCellValue"
-                      @change="saveCellEdit"
+                      v-model="checkboxValue"
+                      @change="handleCheckboxChange(rowIndex, colIndex)"
                     />
+                  </template>
+                </template>
+                <template v-else>
+                  <template v-if="col.fieldType === 'checkbox'">
+                    <el-checkbox :model-value="getCellValue(rowIndex, colIndex) === 'true'" disabled />
                   </template>
                   <template v-else>
-                    <template v-if="col.fieldType === 'checkbox'">
-                      <el-checkbox :model-value="getCellValue(row.id, col.id) === 'true'" disabled />
-                    </template>
-                    <template v-else>
-                      {{ getCellValue(row.id, col.id) || '' }}
-                    </template>
+                    {{ getCellValue(rowIndex, colIndex) || '' }}
                   </template>
-                </td>
-                <td class="table-cell add-column-cell"></td>
-              </tr>
-              <tr class="add-row-row">
-                <td 
-                  class="table-cell add-row-cell" 
-                  style="width: 50px;"
-                  @click="handleAddRow"
-                >
-                  <el-icon><Plus /></el-icon>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                </template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
     
     <div class="table-footer">
-      <div class="footer-left">
-        <span class="selection-count">{{ getSelectionCount() }} 条记录</span>
-      </div>
-      <div class="footer-center">
-        <el-scrollbar class="horizontal-scrollbar">
-          <div class="scroll-track" ref="scrollTrackRef">
-            <div 
-              class="scroll-thumb" 
-              :style="{ width: scrollThumbWidth + 'px', left: scrollThumbLeft + 'px' }"
-              ref="scrollThumbRef"
-              @mousedown="startScrollThumbDrag"
-            />
-          </div>
-        </el-scrollbar>
-      </div>
-      <div class="footer-right">
-        <el-icon><ArrowLeft /></el-icon>
-        <el-icon><ArrowRight /></el-icon>
-      </div>
+      <span>{{ selectedRowIndices.length > 0 ? selectedRowIndices.length : tableData.rows.length }} 条记录</span>
     </div>
-    
-    <el-dropdown
-      v-model="fieldTypeMenuVisible"
-      :placement="'bottom-start'"
-      trigger="manual"
-    >
-      <span style="display: none;" />
-      <template #dropdown>
-        <el-dropdown-menu>
-          <el-dropdown-item 
-            @click="setFieldType('text')"
-            :class="{ 'is-active': selectedColumnForFieldType && getColumnById(selectedColumnForFieldType)?.fieldType === 'text' }"
-          >
-            <el-icon><Edit /></el-icon>
-            <span>文本</span>
-          </el-dropdown-item>
-          <el-dropdown-item 
-            @click="setFieldType('select')"
-            :class="{ 'is-active': selectedColumnForFieldType && getColumnById(selectedColumnForFieldType)?.fieldType === 'select' }"
-          >
-            <el-icon><CircleCheck /></el-icon>
-            <span>单选</span>
-          </el-dropdown-item>
-          <el-dropdown-item 
-            @click="setFieldType('date')"
-            :class="{ 'is-active': selectedColumnForFieldType && getColumnById(selectedColumnForFieldType)?.fieldType === 'date' }"
-          >
-            <el-icon><Calendar /></el-icon>
-            <span>日期</span>
-          </el-dropdown-item>
-          <el-dropdown-item 
-            @click="setFieldType('checkbox')"
-            :class="{ 'is-active': selectedColumnForFieldType && getColumnById(selectedColumnForFieldType)?.fieldType === 'checkbox' }"
-          >
-            <el-icon><CheckBox /></el-icon>
-            <span>复选框</span>
-          </el-dropdown-item>
-        </el-dropdown-menu>
-      </template>
-    </el-dropdown>
-    
-    <el-dropdown
-      v-model="columnMenuVisible"
-      :placement="'bottom-start'"
-      trigger="manual"
-    >
-      <span style="display: none;" />
-      <template #dropdown>
-        <el-dropdown-menu>
-          <el-dropdown-item @click="handleInsertColumn('left')">
-            <el-icon><Top /></el-icon>
-            <span>在左侧插入列</span>
-          </el-dropdown-item>
-          <el-dropdown-item @click="handleInsertColumn('right')">
-            <el-icon><Bottom /></el-icon>
-            <span>在右侧插入列</span>
-          </el-dropdown-item>
-          <el-dropdown-item divided @click="handleDeleteColumn">
-            <el-icon><Delete /></el-icon>
-            <span>删除列</span>
-          </el-dropdown-item>
-        </el-dropdown-menu>
-      </template>
-    </el-dropdown>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
-  Edit,
-  CircleCheck,
-  Calendar,
-  CheckBox,
-  MoreFilled,
   Delete,
-  Top,
-  Bottom,
-  ArrowLeft,
-  ArrowRight,
 } from '@element-plus/icons-vue'
-import type { 
-  InteractiveTableData, 
-  TableColumn, 
-  TableFieldType,
-  TableSelection 
-} from '@/types'
-import InteractiveTableToolbar from './InteractiveTableToolbar.vue'
+import type { InteractiveTableData, TableFieldType } from '@/types'
 
 const props = defineProps<{
   modelValue: InteractiveTableData
@@ -270,373 +154,240 @@ const emit = defineEmits<{
   (e: 'delete'): void
 }>()
 
-const tableContainerRef = ref<HTMLElement | null>(null)
-const scrollHorizontalRef = ref<HTMLElement | null>(null)
-const scrollTrackRef = ref<HTMLElement | null>(null)
-const scrollThumbRef = ref<HTMLElement | null>(null)
+const wrapperRef = ref<HTMLElement | null>(null)
+const scrollContainerRef = ref<HTMLElement | null>(null)
 
-const tableData = ref<InteractiveTableData>(props.modelValue)
+const tableData = ref<InteractiveTableData>(JSON.parse(JSON.stringify(props.modelValue)))
 
-const selectAllRows = ref(false)
-const selectedRowIds = ref<string[]>([])
-const hoveredRowId = ref<string | null>(null)
+const selectAll = ref(false)
+const selectedRowIndices = ref<number[]>([])
 
-const selectedCells = ref<TableSelection[]>([])
-const editingCell = ref<{ rowId: string; colId: string } | null>(null)
-const editingCellValue = ref('')
+const editingCell = ref<{ rowIndex: number; colIndex: number } | null>(null)
+const editingValue = ref('')
+const checkboxValue = ref(false)
 
-const editingColumnId = ref<string | null>(null)
-const editingColumnTitle = ref('')
+const editingColIndex = ref<number | null>(null)
+const editingTitle = ref('')
 
-const resizingColumn = ref<{ colId: string; startX: number; startWidth: number } | null>(null)
+const resizingColumn = ref<{ colIndex: number; startX: number; startWidth: number } | null>(null)
 
-const fieldTypeMenuVisible = ref(false)
-const selectedColumnForFieldType = ref<string | null>(null)
-
-const columnMenuVisible = ref(false)
-const selectedColumnForMenu = ref<string | null>(null)
-
-const scrollThumbWidth = ref(100)
-const scrollThumbLeft = ref(0)
-let isScrollThumbDragging = false
-let scrollThumbStartX = 0
-let scrollThumbStartLeft = 0
-
-const totalWidth = computed(() => {
+const tableWidth = computed(() => {
   return tableData.value.columns.reduce((sum, col) => sum + col.width, 0) + 50
 })
 
-function getCellValue(rowId: string, colId: string): string {
+watch(() => props.modelValue, (newVal) => {
+  tableData.value = JSON.parse(JSON.stringify(newVal))
+}, { deep: true })
+
+function emitData() {
+  emit('update:modelValue', JSON.parse(JSON.stringify(tableData.value)))
+}
+
+function getCellValue(rowIndex: number, colIndex: number): string {
+  const rowId = tableData.value.rows[rowIndex]?.id
+  const colId = tableData.value.columns[colIndex]?.id
+  
+  if (!rowId || !colId) return ''
+  
   const cell = tableData.value.cells.find(c => c.rowId === rowId && c.colId === colId)
   return cell?.value || ''
 }
 
-function setCellValue(rowId: string, colId: string, value: string) {
+function setCellValue(rowIndex: number, colIndex: number, value: string) {
+  const rowId = tableData.value.rows[rowIndex]?.id
+  const colId = tableData.value.columns[colIndex]?.id
+  
+  if (!rowId || !colId) return
+  
   const cellIndex = tableData.value.cells.findIndex(c => c.rowId === rowId && c.colId === colId)
+  
   if (cellIndex >= 0) {
     tableData.value.cells[cellIndex].value = value
   } else {
     tableData.value.cells.push({ rowId, colId, value })
   }
+  
   emitData()
 }
 
-function getColumnById(colId: string): TableColumn | undefined {
-  return tableData.value.columns.find(c => c.id === colId)
-}
-
-function isCellSelected(rowId: string, colId: string): boolean {
-  return selectedCells.value.some(c => c.rowId === rowId && c.colId === colId)
-}
-
-function getSelectionCount(): number {
-  return selectedRowIds.value.length || tableData.value.rows.length
-}
-
-function generateId(): string {
-  return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-}
-
-function emitData() {
-  emit('update:modelValue', { ...tableData.value })
-}
-
-function handleAddColumn() {
-  const newCol: TableColumn = {
-    id: generateId(),
-    width: 150,
-    fieldType: 'text',
-    title: '字段',
+function getFieldTypeLabel(type: TableFieldType): string {
+  const labels: Record<TableFieldType, string> = {
+    text: '文本',
+    select: '单选',
+    date: '日期',
+    checkbox: '复选框',
   }
-  tableData.value.columns.push(newCol)
-  
-  tableData.value.rows.forEach(row => {
-    tableData.value.cells.push({ rowId: row.id, colId: newCol.id, value: '' })
-  })
-  
-  emitData()
-  ElMessage.success('已添加新列')
-}
-
-function handleInsertColumn(position: 'left' | 'right') {
-  if (!selectedColumnForMenu.value) return
-  
-  const colIndex = tableData.value.columns.findIndex(c => c.id === selectedColumnForMenu.value)
-  if (colIndex < 0) return
-  
-  const insertIndex = position === 'left' ? colIndex : colIndex + 1
-  
-  const newCol: TableColumn = {
-    id: generateId(),
-    width: 150,
-    fieldType: 'text',
-    title: '字段',
-  }
-  
-  tableData.value.columns.splice(insertIndex, 0, newCol)
-  
-  tableData.value.rows.forEach(row => {
-    tableData.value.cells.push({ rowId: row.id, colId: newCol.id, value: '' })
-  })
-  
-  columnMenuVisible.value = false
-  emitData()
-  ElMessage.success(`已在${position === 'left' ? '左侧' : '右侧'}插入新列`)
-}
-
-function handleDeleteColumn() {
-  if (!selectedColumnForMenu.value) return
-  
-  const colIndex = tableData.value.columns.findIndex(c => c.id === selectedColumnForMenu.value)
-  if (colIndex < 0) return
-  
-  tableData.value.columns.splice(colIndex, 1)
-  tableData.value.cells = tableData.value.cells.filter(c => c.colId !== selectedColumnForMenu.value)
-  
-  columnMenuVisible.value = false
-  emitData()
-  ElMessage.success('已删除列')
+  return labels[type] || type
 }
 
 function handleAddRow() {
-  const newRow = {
-    id: generateId(),
-    height: 40,
-  }
+  const newRowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
   
-  tableData.value.rows.push(newRow)
+  tableData.value.rows.push({
+    id: newRowId,
+    height: 40,
+  })
   
   tableData.value.columns.forEach(col => {
-    tableData.value.cells.push({ rowId: newRow.id, colId: col.id, value: '' })
+    tableData.value.cells.push({
+      rowId: newRowId,
+      colId: col.id,
+      value: '',
+    })
   })
   
   emitData()
   ElMessage.success('已添加新行')
 }
 
-function handleSelectAll() {
-  if (selectAllRows.value) {
-    selectedRowIds.value = tableData.value.rows.map(r => r.id)
-  } else {
-    selectedRowIds.value = []
-  }
-}
-
-function toggleRowSelection(rowId: string) {
-  const index = selectedRowIds.value.indexOf(rowId)
-  if (index >= 0) {
-    selectedRowIds.value.splice(index, 1)
-  } else {
-    selectedRowIds.value.push(rowId)
-  }
+function handleAddColumn() {
+  const newColId = 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
   
-  selectAllRows.value = selectedRowIds.value.length === tableData.value.rows.length
+  tableData.value.columns.push({
+    id: newColId,
+    width: 150,
+    fieldType: 'text',
+    title: '字段' + (tableData.value.columns.length + 1),
+  })
+  
+  tableData.value.rows.forEach(row => {
+    tableData.value.cells.push({
+      rowId: row.id,
+      colId: newColId,
+      value: '',
+    })
+  })
+  
+  emitData()
+  ElMessage.success('已添加新列')
 }
 
-function handleCellClick(rowId: string, colId: string, e: MouseEvent) {
-  if (e.shiftKey && selectedCells.value.length > 0) {
-    const lastCell = selectedCells.value[selectedCells.value.length - 1]
-    const rowIndex = tableData.value.rows.findIndex(r => r.id === rowId)
-    const lastRowIndex = tableData.value.rows.findIndex(r => r.id === lastCell.rowId)
-    const colIndex = tableData.value.columns.findIndex(c => c.id === colId)
-    const lastColIndex = tableData.value.columns.findIndex(c => c.id === lastCell.colId)
+function handleDeleteTable() {
+  ElMessageBox.confirm('确定要删除此表格吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(() => {
+    emit('delete')
+  }).catch(() => {})
+}
+
+function handleSelectAll(checked: boolean) {
+  if (checked) {
+    selectedRowIndices.value = tableData.value.rows.map((_, i) => i)
+  } else {
+    selectedRowIndices.value = []
+  }
+}
+
+function handleRowClick(rowIndex: number, e: MouseEvent) {
+  if (e.shiftKey && selectedRowIndices.value.length > 0) {
+    const lastSelected = selectedRowIndices.value[selectedRowIndices.value.length - 1]
+    const min = Math.min(lastSelected, rowIndex)
+    const max = Math.max(lastSelected, rowIndex)
     
-    selectedCells.value = []
-    const minRow = Math.min(rowIndex, lastRowIndex)
-    const maxRow = Math.max(rowIndex, lastRowIndex)
-    const minCol = Math.min(colIndex, lastColIndex)
-    const maxCol = Math.max(colIndex, lastColIndex)
-    
-    for (let i = minRow; i <= maxRow; i++) {
-      for (let j = minCol; j <= maxCol; j++) {
-        selectedCells.value.push({
-          rowId: tableData.value.rows[i].id,
-          colId: tableData.value.columns[j].id,
-        })
-      }
+    selectedRowIndices.value = []
+    for (let i = min; i <= max; i++) {
+      selectedRowIndices.value.push(i)
+    }
+  } else if (e.ctrlKey || e.metaKey) {
+    const index = selectedRowIndices.value.indexOf(rowIndex)
+    if (index >= 0) {
+      selectedRowIndices.value.splice(index, 1)
+    } else {
+      selectedRowIndices.value.push(rowIndex)
     }
   } else {
-    selectedCells.value = [{ rowId, colId }]
+    selectedRowIndices.value = [rowIndex]
   }
   
-  editingCell.value = null
+  selectAll.value = selectedRowIndices.value.length === tableData.value.rows.length
 }
 
-function handleCellDblClick(rowId: string, colId: string) {
-  const col = getColumnById(colId)
-  if (!col) return
+function handleCellClick(rowIndex: number, colIndex: number, e: MouseEvent) {
+  if (editingCell.value && 
+      (editingCell.value.rowIndex !== rowIndex || editingCell.value.colIndex !== colIndex)) {
+    saveCellEdit()
+  }
+}
+
+function handleCellDblClick(rowIndex: number, colIndex: number) {
+  const col = tableData.value.columns[colIndex]
   
-  editingCell.value = { rowId, colId }
-  editingCellValue.value = getCellValue(rowId, colId)
+  editingCell.value = { rowIndex, colIndex }
+  editingValue.value = getCellValue(rowIndex, colIndex)
+  
+  if (col.fieldType === 'checkbox') {
+    checkboxValue.value = editingValue.value === 'true'
+  }
 }
 
 function saveCellEdit() {
   if (!editingCell.value) return
   
-  const col = getColumnById(editingCell.value.colId)
-  if (!col) return
+  const col = tableData.value.columns[editingCell.value.colIndex]
   
-  let value = editingCellValue.value
-  
-  if (col.fieldType === 'checkbox') {
-    value = editingCellValue.value ? 'true' : 'false'
+  if (col.fieldType !== 'checkbox') {
+    setCellValue(editingCell.value.rowIndex, editingCell.value.colIndex, editingValue.value)
   }
   
-  setCellValue(editingCell.value.rowId, editingCell.value.colId, value)
   editingCell.value = null
+  editingValue.value = ''
 }
 
-function startEditHeader(colId: string) {
-  const col = getColumnById(colId)
-  if (!col) return
-  
-  editingColumnId.value = colId
-  editingColumnTitle.value = col.title
+function handleCheckboxChange(rowIndex: number, colIndex: number) {
+  setCellValue(rowIndex, colIndex, checkboxValue.value ? 'true' : 'false')
 }
 
-function saveHeaderEdit(colId: string) {
-  const colIndex = tableData.value.columns.findIndex(c => c.id === colId)
-  if (colIndex >= 0) {
-    tableData.value.columns[colIndex].title = editingColumnTitle.value
+function startEditHeader(colIndex: number) {
+  editingColIndex.value = colIndex
+  editingTitle.value = tableData.value.columns[colIndex].title
+}
+
+function saveHeaderEdit(colIndex: number) {
+  if (editingTitle.value.trim()) {
+    tableData.value.columns[colIndex].title = editingTitle.value.trim()
     emitData()
   }
-  editingColumnId.value = null
+  editingColIndex.value = null
+  editingTitle.value = ''
 }
 
-function toggleFieldTypeMenu(colId: string) {
-  selectedColumnForFieldType.value = colId
-  fieldTypeMenuVisible.value = !fieldTypeMenuVisible.value
-}
-
-function setFieldType(type: TableFieldType) {
-  if (!selectedColumnForFieldType.value) return
-  
-  const colIndex = tableData.value.columns.findIndex(c => c.id === selectedColumnForFieldType.value)
-  if (colIndex >= 0) {
-    tableData.value.columns[colIndex].fieldType = type
-    
-    if (type === 'select' && !tableData.value.columns[colIndex].selectOptions) {
-      tableData.value.columns[colIndex].selectOptions = ['选项1', '选项2', '选项3']
-    }
-    
-    emitData()
-    ElMessage.success(`字段类型已切换为${type === 'text' ? '文本' : type === 'select' ? '单选' : type === 'date' ? '日期' : '复选框'}`)
-  }
-  
-  fieldTypeMenuVisible.value = false
-}
-
-function showColumnMenu(colId: string, event: MouseEvent) {
-  event.stopPropagation()
-  selectedColumnForMenu.value = colId
-  columnMenuVisible.value = !columnMenuVisible.value
-}
-
-function startResizeColumn(colId: string, event: MouseEvent) {
-  event.preventDefault()
-  const col = getColumnById(colId)
-  if (!col) return
+function startResizeColumn(colIndex: number, e: MouseEvent) {
+  e.preventDefault()
   
   resizingColumn.value = {
-    colId,
-    startX: event.clientX,
-    startWidth: col.width,
+    colIndex,
+    startX: e.clientX,
+    startWidth: tableData.value.columns[colIndex].width,
   }
   
   document.addEventListener('mousemove', handleResizeMove)
   document.addEventListener('mouseup', handleResizeEnd)
 }
 
-function handleResizeMove(event: MouseEvent) {
+function handleResizeMove(e: MouseEvent) {
   if (!resizingColumn.value) return
   
-  const deltaX = event.clientX - resizingColumn.value.startX
+  const deltaX = e.clientX - resizingColumn.value.startX
   const newWidth = Math.max(80, resizingColumn.value.startWidth + deltaX)
   
-  const colIndex = tableData.value.columns.findIndex(c => c.id === resizingColumn.value!.colId)
-  if (colIndex >= 0) {
-    tableData.value.columns[colIndex].width = newWidth
-    emitData()
-  }
+  tableData.value.columns[resizingColumn.value.colIndex].width = newWidth
 }
 
 function handleResizeEnd() {
-  resizingColumn.value = null
+  if (resizingColumn.value) {
+    emitData()
+    resizingColumn.value = null
+  }
+  
   document.removeEventListener('mousemove', handleResizeMove)
   document.removeEventListener('mouseup', handleResizeEnd)
 }
-
-function startScrollThumbDrag(event: MouseEvent) {
-  isScrollThumbDragging = true
-  scrollThumbStartX = event.clientX
-  scrollThumbStartLeft = scrollThumbLeft.value
-  
-  document.addEventListener('mousemove', handleScrollThumbMove)
-  document.addEventListener('mouseup', handleScrollThumbEnd)
-}
-
-function handleScrollThumbMove(event: MouseEvent) {
-  if (!isScrollThumbDragging || !scrollTrackRef.value || !scrollHorizontalRef.value) return
-  
-  const trackRect = scrollTrackRef.value.getBoundingClientRect()
-  const deltaX = event.clientX - scrollThumbStartX
-  const maxLeft = trackRect.width - scrollThumbWidth.value
-  const newLeft = Math.max(0, Math.min(maxLeft, scrollThumbStartLeft + deltaX))
-  
-  scrollThumbLeft.value = newLeft
-  
-  const scrollRatio = newLeft / maxLeft
-  const maxScroll = scrollHorizontalRef.value.scrollWidth - scrollHorizontalRef.value.clientWidth
-  scrollHorizontalRef.value.scrollLeft = scrollRatio * maxScroll
-}
-
-function handleScrollThumbEnd() {
-  isScrollThumbDragging = false
-  document.removeEventListener('mousemove', handleScrollThumbMove)
-  document.removeEventListener('mouseup', handleScrollThumbEnd)
-}
-
-function updateScrollThumb() {
-  if (!scrollHorizontalRef.value || !scrollTrackRef.value) return
-  
-  const scrollWidth = scrollHorizontalRef.value.scrollWidth
-  const clientWidth = scrollHorizontalRef.value.clientWidth
-  
-  if (scrollWidth <= clientWidth) {
-    scrollThumbWidth.value = 0
-    return
-  }
-  
-  const trackRect = scrollTrackRef.value.getBoundingClientRect()
-  const thumbWidth = (clientWidth / scrollWidth) * trackRect.width
-  scrollThumbWidth.value = Math.max(50, thumbWidth)
-  
-  const scrollRatio = scrollHorizontalRef.value.scrollLeft / (scrollWidth - clientWidth)
-  const maxLeft = trackRect.width - scrollThumbWidth.value
-  scrollThumbLeft.value = scrollRatio * maxLeft
-}
-
-watch(() => props.modelValue, (newVal) => {
-  tableData.value = newVal
-}, { deep: true })
-
-onMounted(() => {
-  updateScrollThumb()
-  
-  if (scrollHorizontalRef.value) {
-    scrollHorizontalRef.value.addEventListener('scroll', updateScrollThumb)
-  }
-})
 
 onUnmounted(() => {
-  if (scrollHorizontalRef.value) {
-    scrollHorizontalRef.value.removeEventListener('scroll', updateScrollThumb)
-  }
-  
   document.removeEventListener('mousemove', handleResizeMove)
   document.removeEventListener('mouseup', handleResizeEnd)
-  document.removeEventListener('mousemove', handleScrollThumbMove)
-  document.removeEventListener('mouseup', handleScrollThumbEnd)
 })
 </script>
 
@@ -646,7 +397,42 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
-  margin: 8px 0;
+  margin: 16px 0;
+}
+
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e4e7ed;
+  background: #fafafa;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #606266;
+  border-radius: 4px;
+  
+  &:hover {
+    background: #ecf5ff;
+    color: #409eff;
+  }
+  
+  .el-icon {
+    font-size: 14px;
+  }
 }
 
 .table-container {
@@ -658,113 +444,75 @@ onUnmounted(() => {
   overflow-y: hidden;
 }
 
-.table-body-wrapper {
-  min-width: 100%;
-}
-
 .interactive-table {
   border-collapse: collapse;
   table-layout: fixed;
-  
-  th, td {
-    border: 1px solid #e4e7ed;
-    padding: 0;
-    vertical-align: middle;
-    position: relative;
-  }
 }
 
 .table-header-cell {
-  background: #fafafa;
-  height: 48px;
+  background: #f5f7fa;
+  height: 44px;
   font-weight: 500;
   color: #606266;
   border-bottom: 2px solid #e4e7ed;
+  border-right: 1px solid #e4e7ed;
+  position: relative;
+  vertical-align: middle;
+  
+  &:last-child {
+    border-right: none;
+  }
   
   &.checkbox-header {
     width: 50px;
     text-align: center;
+    padding: 0;
   }
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  height: 100%;
   
-  &.add-column-header {
-    width: 50px;
-    text-align: center;
+  .header-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     cursor: pointer;
     
-    &:hover {
-      background: #f0f2f5;
-    }
-    
-    .el-icon {
-      color: #909399;
-      font-size: 16px;
+    :deep(.el-input__wrapper) {
+      padding: 2px 8px;
+      box-shadow: none;
+      background: #fff;
     }
   }
   
-  .header-content {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    height: 100%;
-    
-    .field-type-icon {
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      
-      &:hover {
-        background: #e4e7ed;
-      }
-      
-      .el-icon {
-        font-size: 14px;
-        color: #909399;
-      }
-    }
-    
-    .header-title {
-      flex: 1;
-      cursor: text;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    
-    .header-menu {
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      opacity: 0;
-      transition: opacity 0.2s;
-      
-      .el-icon {
-        font-size: 14px;
-        color: #909399;
-      }
-    }
+  .field-type-badge {
+    font-size: 12px;
+    color: #909399;
+    background: #f4f4f5;
+    padding: 2px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
   }
+}
+
+.column-resize-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 10;
   
-  &:hover .header-menu {
-    opacity: 1;
-  }
-  
-  .column-resize-handle {
-    position: absolute;
-    right: -3px;
-    top: 0;
-    bottom: 0;
-    width: 6px;
-    cursor: col-resize;
-    z-index: 10;
-    
-    &:hover {
-      background: #409eff;
-    }
+  &:hover {
+    background: #409eff;
   }
 }
 
@@ -779,12 +527,6 @@ onUnmounted(() => {
   &.row-selected {
     background: #ecf5ff;
   }
-  
-  &.row-hovered {
-    .row-index {
-      opacity: 1;
-    }
-  }
 }
 
 .table-cell {
@@ -792,134 +534,42 @@ onUnmounted(() => {
   padding: 8px 12px;
   font-size: 14px;
   color: #303133;
+  border-bottom: 1px solid #e4e7ed;
+  border-right: 1px solid #e4e7ed;
+  vertical-align: middle;
   position: relative;
+  cursor: pointer;
+  
+  &:last-child {
+    border-right: none;
+  }
   
   &.checkbox-cell {
     width: 50px;
     text-align: center;
-    cursor: pointer;
+    padding: 0;
     
-    .row-index {
-      color: #909399;
+    .row-number {
       font-size: 13px;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-  }
-  
-  &.add-column-cell {
-    width: 50px;
-    border-right: none;
-  }
-  
-  &.cell-selected {
-    background: #e6f7ff;
-    outline: 2px solid #409eff;
-    outline-offset: -2px;
-    z-index: 1;
-  }
-  
-  .el-input,
-  .el-select,
-  .el-date-editor {
-    width: 100%;
-  }
-}
-
-.add-row-row {
-  .add-row-cell {
-    width: 50px;
-    text-align: center;
-    cursor: pointer;
-    
-    .el-icon {
       color: #909399;
-      font-size: 16px;
     }
+  }
+  
+  &.cell-editing {
+    padding: 4px;
     
-    &:hover {
-      background: #f0f2f5;
-      
-      .el-icon {
-        color: #409eff;
-      }
+    :deep(.el-input__wrapper) {
+      padding: 0 8px;
     }
   }
 }
 
 .table-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border-top: 1px solid #e4e7ed;
   background: #fafafa;
-  min-height: 40px;
-  
-  .footer-left {
-    .selection-count {
-      font-size: 13px;
-      color: #909399;
-    }
-  }
-  
-  .footer-center {
-    flex: 1;
-    margin: 0 16px;
-    max-width: 400px;
-    
-    .horizontal-scrollbar {
-      width: 100%;
-      
-      :deep(.el-scrollbar__wrap) {
-        height: 8px;
-        overflow-x: auto;
-      }
-      
-      :deep(.el-scrollbar__bar) {
-        display: none;
-      }
-    }
-    
-    .scroll-track {
-      width: 100%;
-      height: 8px;
-      background: #e4e7ed;
-      border-radius: 4px;
-      position: relative;
-      
-      .scroll-thumb {
-        position: absolute;
-        top: 0;
-        height: 100%;
-        background: #c0c4cc;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background 0.2s;
-        
-        &:hover {
-          background: #909399;
-        }
-      }
-    }
-  }
-  
-  .footer-right {
-    display: flex;
-    gap: 4px;
-    
-    .el-icon {
-      font-size: 14px;
-      color: #909399;
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      
-      &:hover {
-        background: #e4e7ed;
-        color: #606266;
-      }
-    }
-  }
+  font-size: 13px;
+  color: #909399;
+  text-align: center;
 }
 </style>
