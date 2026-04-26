@@ -262,6 +262,39 @@
     @rename="handleRename"
     @delete="handleDelete"
   />
+  
+  <SlashMenu
+    :visible="slashMenuVisible"
+    :position="slashMenuPosition"
+    @close="hideSlashMenu"
+    @insert="handleSlashMenuInsert"
+    @upload="handleSlashMenuUpload"
+  />
+  
+  <el-dialog
+    v-model="uploadDialogVisible"
+    :title="uploadType === 'image' ? '上传图片' : '上传附件'"
+    width="500px"
+  >
+    <div class="upload-content">
+      <el-upload
+        drag
+        :auto-upload="false"
+        :on-change="handleFileUpload"
+        :limit="1"
+      >
+        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+        <div class="el-upload__text">
+          将文件拖到此处，或<em>点击上传</em>
+        </div>
+        <template #tip>
+          <div class="el-upload__tip">
+            {{ uploadType === 'image' ? '支持 jpg、png、gif 格式' : '支持所有文件格式' }}
+          </div>
+        </template>
+      </el-upload>
+    </div>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -280,6 +313,7 @@ import {
   Link,
   Minus,
   Share,
+  UploadFilled,
 } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -289,6 +323,7 @@ import { folderApi, documentApi, treeApi } from '@/api'
 import type { TreeNode as TreeNodeType } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
+import SlashMenu from './components/SlashMenu.vue'
 
 interface HistoryItem {
   content: string
@@ -338,6 +373,13 @@ const contextMenu = ref({
   node: null as TreeNodeType | null,
   isRoot: false,
 })
+
+const slashMenuVisible = ref(false)
+const slashMenuPosition = ref({ x: 0, y: 0 })
+const slashMenuCursorPos = ref(0)
+
+const uploadDialogVisible = ref(false)
+const uploadType = ref<'image' | 'attachment'>('image')
 
 const canUndo = computed(() => historyIndex.value > 0)
 const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1)
@@ -905,11 +947,126 @@ function insertHR() {
   insertTextAtCursor(text, text.length)
 }
 
+function getCursorPosition() {
+  if (!editorRef.value) return { x: 0, y: 0 }
+  
+  const textarea = editorRef.value
+  const start = textarea.selectionStart
+  
+  const rect = textarea.getBoundingClientRect()
+  const computedStyle = window.getComputedStyle(textarea)
+  const lineHeight = parseInt(computedStyle.lineHeight) || 24
+  const fontSize = parseInt(computedStyle.fontSize) || 14
+  
+  const textBeforeCursor = editContent.value.substring(0, start)
+  const lines = textBeforeCursor.split('\n')
+  const lineCount = lines.length
+  const lastLine = lines[lines.length - 1] || ''
+  
+  const x = rect.left + 10 + lastLine.length * fontSize * 0.6
+  const y = rect.top + (lineCount - 1) * lineHeight + lineHeight + 10
+  
+  return { x, y }
+}
+
+function showSlashMenu() {
+  if (!editorRef.value) return
+  
+  slashMenuCursorPos.value = editorRef.value.selectionStart
+  const pos = getCursorPosition()
+  slashMenuPosition.value = { x: pos.x, y: pos.y }
+  slashMenuVisible.value = true
+}
+
+function hideSlashMenu() {
+  slashMenuVisible.value = false
+}
+
+function handleSlashMenuInsert(markdown: string, cursorOffset: number) {
+  if (!editorRef.value) return
+  
+  const cursorPos = slashMenuCursorPos.value
+  const beforeText = editContent.value.substring(0, cursorPos - 1)
+  const afterText = editContent.value.substring(cursorPos)
+  
+  editContent.value = beforeText + markdown + afterText
+  
+  const newCursorPos = cursorPos - 1 + cursorOffset
+  
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus()
+      editorRef.value.selectionStart = newCursorPos
+      editorRef.value.selectionEnd = newCursorPos
+      cursorStart.value = newCursorPos
+      cursorEnd.value = newCursorPos
+    }
+  })
+  
+  hideSlashMenu()
+}
+
+function handleSlashMenuUpload(type: 'image' | 'attachment') {
+  uploadType.value = type
+  uploadDialogVisible.value = true
+  hideSlashMenu()
+}
+
+function handleFileUpload(e: Event) {
+  const target = e.target as HTMLInputElement
+  const files = target.files
+  
+  if (!files || files.length === 0) return
+  
+  const file = files[0]
+  const fileName = file.name
+  
+  let markdown = ''
+  if (uploadType.value === 'image') {
+    markdown = `![${fileName}](./uploads/${fileName})`
+  } else {
+    markdown = `[${fileName}](./uploads/${fileName})`
+  }
+  
+  saveCursorPosition()
+  insertTextAtCursor(markdown, 0)
+  
+  ElMessage.success(`${uploadType.value === 'image' ? '图片' : '附件'}已添加`)
+  uploadDialogVisible.value = false
+}
+
 function handleKeyDown(e: KeyboardEvent) {
   const textarea = e.target as HTMLTextAreaElement
   const value = editContent.value
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
+  
+  if (slashMenuVisible.value) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      hideSlashMenu()
+      return
+    }
+    if (e.key === 'Backspace') {
+      const cursorPos = slashMenuCursorPos.value
+      if (start <= cursorPos && start > 0) {
+        const charBefore = value.substring(start - 1, start)
+        if (charBefore === '/') {
+          hideSlashMenu()
+        }
+      }
+    }
+  }
+  
+  if (e.key === '/' && start === end && !slashMenuVisible.value) {
+    const beforeChar = start > 0 ? value.substring(start - 1, start) : ''
+    if (beforeChar === '' || beforeChar === '\n' || beforeChar === ' ') {
+      nextTick(() => {
+        showSlashMenu()
+      })
+    }
+    return
+  }
   
   if (e.ctrlKey || e.metaKey) {
     if (e.key === 'z' && !e.shiftKey) {
