@@ -10,15 +10,14 @@ export function useBlockEditor(modelValue: Block[]) {
   const slashMenuTargetBlockId = ref<string | null>(null)
   const uploadDialogVisible = ref(false)
   const uploadType = ref<'image' | 'attachment'>('image')
+  const isSyncingFromProps = ref(false)
 
   function generateId(): string {
     return 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
   }
 
-  let isSyncingFromProps = false
-
   function syncBlockContentToDOM() {
-    if (isSyncingFromProps) {
+    if (isSyncingFromProps.value) {
       nextTick(() => {
         blocks.value.forEach((block) => {
           if (block.type !== 'table' && block.type !== 'code' && block.type !== 'divider') {
@@ -171,12 +170,12 @@ export function useBlockEditor(modelValue: Block[]) {
       target.textContent = beforeText
 
       const newBlock = createBlock('text', afterText)
+      const newBlockId = newBlock.id
       blocks.value.splice(blockIndex + 1, 0, newBlock)
       activeBlockId.value = newBlock.id
 
       setTimeout(() => {
-        const blockElements = document.querySelectorAll('.editable-content')
-        const newBlockEl = blockElements[blockIndex + 1] as HTMLElement
+        const newBlockEl = document.querySelector(`[data-block-id="${newBlockId}"]`) as HTMLElement
 
         if (newBlockEl) {
           if (afterText) {
@@ -197,7 +196,7 @@ export function useBlockEditor(modelValue: Block[]) {
             selection.addRange(range)
           }
         }
-      }, 50)
+      }, 100)
       return
     }
 
