@@ -237,7 +237,20 @@
             />
           </div>
           <div class="preview-pane">
-            <div class="markdown-body" :style="previewStyle" v-html="renderedContent"></div>
+            <div class="markdown-body" :style="previewStyle">
+              <template v-for="(fragment, index) in contentFragments" :key="index">
+                <template v-if="fragment.type === 'text'">
+                  <div v-html="md.render(fragment.content)"></div>
+                </template>
+                <template v-else-if="fragment.type === 'table' && fragment.tableData">
+                  <InteractiveTable
+                    :modelValue="fragment.tableData"
+                    @update:modelValue="(data: InteractiveTableData) => updateTableData(fragment, data)"
+                    @delete="() => deleteTable(fragment)"
+                  />
+                </template>
+              </template>
+            </div>
           </div>
         </div>
       </template>
@@ -320,10 +333,11 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { useKnowledgeStore } from '@/store/knowledge'
 import { folderApi, documentApi, treeApi } from '@/api'
-import type { TreeNode as TreeNodeType } from '@/types'
+import type { TreeNode as TreeNodeType, InteractiveTableData } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SlashMenu from './components/SlashMenu.vue'
+import InteractiveTable from './components/InteractiveTable.vue'
 
 interface HistoryItem {
   content: string
@@ -381,6 +395,15 @@ const slashStartPos = ref(0)
 const uploadDialogVisible = ref(false)
 const uploadType = ref<'image' | 'attachment'>('image')
 
+interface ContentFragment {
+  type: 'text' | 'table'
+  content: string
+  tableData?: InteractiveTableData
+  tableId?: string
+  startIndex?: number
+  endIndex?: number
+}
+
 const canUndo = computed(() => historyIndex.value > 0)
 const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1)
 
@@ -392,6 +415,77 @@ const editorStyle = computed(() => ({
 const previewStyle = computed(() => ({
   fontSize: `${fontSize.value}px`,
 }))
+
+function parseContentFragments(content: string): ContentFragment[] {
+  const fragments: ContentFragment[] = []
+  const tableStartRegex = /^:::table\s*$/gm
+  const tableEndRegex = /^:::\s*$/gm
+  
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  
+  while ((match = tableStartRegex.exec(content)) !== null) {
+    const startIndex = match.index
+    const beforeTable = content.substring(lastIndex, startIndex)
+    
+    if (beforeTable.trim()) {
+      fragments.push({
+        type: 'text',
+        content: beforeTable,
+      })
+    }
+    
+    const tableStartEnd = match.index + match[0].length
+    const afterTableStart = content.substring(tableStartEnd)
+    
+    const endMatch = tableEndRegex.exec(afterTableStart)
+    if (endMatch) {
+      const tableJsonStr = afterTableStart.substring(0, endMatch.index).trim()
+      
+      try {
+        const tableData = JSON.parse(tableJsonStr) as InteractiveTableData
+        const tableEndIndex = tableStartEnd + endMatch.index + endMatch[0].length
+        
+        fragments.push({
+          type: 'table',
+          content: tableJsonStr,
+          tableData,
+          tableId: tableData.id,
+          startIndex,
+          endIndex: tableEndIndex,
+        })
+        
+        lastIndex = tableEndIndex
+      } catch (e) {
+        fragments.push({
+          type: 'text',
+          content: content.substring(startIndex, tableStartEnd + endMatch.index + endMatch[0].length),
+        })
+        lastIndex = tableStartEnd + endMatch.index + endMatch[0].length
+      }
+    } else {
+      fragments.push({
+        type: 'text',
+        content: content.substring(startIndex),
+      })
+      lastIndex = content.length
+      break
+    }
+  }
+  
+  if (lastIndex < content.length) {
+    fragments.push({
+      type: 'text',
+      content: content.substring(lastIndex),
+    })
+  }
+  
+  return fragments
+}
+
+const contentFragments = computed(() => {
+  return parseContentFragments(editContent.value || '')
+})
 
 const renderedContent = computed(() => {
   const content = editContent.value || ''
@@ -760,6 +854,36 @@ function handleContentChange() {
       })
     }
   }, 2000)
+}
+
+function updateTableData(fragment: ContentFragment, newTableData: InteractiveTableData) {
+  if (fragment.startIndex === undefined || fragment.endIndex === undefined) return
+  
+  const beforeTable = editContent.value.substring(0, fragment.startIndex)
+  const afterTable = editContent.value.substring(fragment.endIndex)
+  
+  const tableJsonStr = JSON.stringify(newTableData, null, 2)
+  const newTableBlock = `:::table\n${tableJsonStr}\n:::`
+  
+  const newEndIndex = fragment.startIndex + newTableBlock.length
+  
+  editContent.value = beforeTable + newTableBlock + afterTable
+  
+  fragment.startIndex = fragment.startIndex
+  fragment.endIndex = newEndIndex
+  fragment.content = tableJsonStr
+  fragment.tableData = newTableData
+}
+
+function deleteTable(fragment: ContentFragment) {
+  if (fragment.startIndex === undefined || fragment.endIndex === undefined) return
+  
+  const beforeTable = editContent.value.substring(0, fragment.startIndex)
+  const afterTable = editContent.value.substring(fragment.endIndex)
+  
+  editContent.value = beforeTable + afterTable
+  
+  ElMessage.success('表格已删除')
 }
 
 function insertTextAtCursor(text: string, selectLength: number = 0) {
