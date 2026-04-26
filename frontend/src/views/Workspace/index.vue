@@ -688,19 +688,21 @@ function blocksToMarkdown(blocks: Block[]): string {
       case 'numbered':
         lines.push(`1. ${block.content || ''}`)
         break
-      case 'todo':
+      case 'todo': {
         const check = block.meta?.checked ? '[x]' : '[ ]'
         lines.push(`- ${check} ${block.content || ''}`)
         break
+      }
       case 'quote':
         lines.push(`> ${block.content || ''}`)
         break
-      case 'code':
+      case 'code': {
         const lang = block.meta?.language || 'plaintext'
         lines.push(`\`\`\`${lang}`)
         lines.push(block.content || '')
         lines.push('```')
         break
+      }
       case 'divider':
         lines.push('---')
         break
@@ -994,8 +996,6 @@ async function saveTitle() {
 function cancelEditTitle() {
   isEditingTitle.value = false
 }
-
-let saveTimer: number | null = null
 
 function saveCursorPosition() {
   if (editorRef.value) {

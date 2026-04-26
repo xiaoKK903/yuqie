@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { MoreFilled, Plus, Delete } from '@element-plus/icons-vue'
+import InteractiveTable from './InteractiveTable.vue'
 import type { Block, BlockType, InteractiveTableData } from '@/types'
 
 interface Props {
