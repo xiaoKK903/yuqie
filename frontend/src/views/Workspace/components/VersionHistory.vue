@@ -122,7 +122,7 @@ async function loadVersions() {
   loading.value = true
   try {
     const res = await versionApi.getByDocumentId(props.documentId)
-    versions.value = res.data || []
+    versions.value = res.data.data || []
   } catch (error) {
     console.error('加载版本历史失败:', error)
     ElMessage.error('加载版本历史失败')
