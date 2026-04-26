@@ -56,3 +56,19 @@ export const treeApi = {
     return request.post('/tree/move', params)
   },
 }
+
+import type { DocumentVersion } from '@/types'
+
+export const versionApi = {
+  getByDocumentId(documentId: number) {
+    return request.get<{ data: DocumentVersion[] }>(`/versions/document/${documentId}`)
+  },
+
+  getById(id: number) {
+    return request.get<{ data: DocumentVersion }>(`/versions/${id}`)
+  },
+
+  restore(id: number) {
+    return request.post<{ data: any; message?: string }>(`/versions/restore/${id}`)
+  },
+}

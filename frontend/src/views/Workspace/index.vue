@@ -52,9 +52,38 @@
             <template v-else>{{ currentDocument.title }}</template>
           </h2>
           <div class="doc-meta">
+            <span class="save-status" :class="saveStatus">
+              <template v-if="saveStatus === 'saved'">
+                <el-icon><Check /></el-icon>
+                <span>已保存</span>
+              </template>
+              <template v-else-if="saveStatus === 'saving'">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>保存中...</span>
+              </template>
+              <template v-else-if="saveStatus === 'unsaved'">
+                <el-icon><CircleClose /></el-icon>
+                <span>未保存</span>
+              </template>
+              <template v-else-if="saveStatus === 'error'">
+                <el-icon><Warning /></el-icon>
+                <span>保存失败</span>
+              </template>
+            </span>
+            <span class="version-btn" @click="versionHistoryVisible = true">
+              <el-icon><Operation /></el-icon>
+              <span>版本历史</span>
+            </span>
             <span>最后更新: {{ formatTime(currentDocument.updatedAt) }}</span>
           </div>
         </div>
+        
+        <VersionHistory
+          v-model="versionHistoryVisible"
+          :document-id="currentDocument?.id || null"
+          :current-content="editContent"
+          @restore="handleVersionRestore"
+        />
         
         <div class="editor-toolbar">
           <div class="toolbar-group">
@@ -325,19 +354,23 @@ import {
   Minus,
   Share,
   UploadFilled,
+  Check,
+  CircleClose,
+  Warning,
 } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { useKnowledgeStore } from '@/store/knowledge'
-import { folderApi, documentApi, treeApi } from '@/api'
-import type { TreeNode as TreeNodeType, InteractiveTableData, Block, BlockType } from '@/types'
+import { folderApi, documentApi, treeApi, versionApi } from '@/api'
+import type { TreeNode as TreeNodeType, InteractiveTableData, Block, BlockType, SaveStatus, DocumentVersion } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SlashMenu from './components/SlashMenu.vue'
 import InteractiveTable from './components/InteractiveTable.vue'
 import BlockEditor from './components/BlockEditor.vue'
 import OutlinePanel from './components/OutlinePanel.vue'
+import VersionHistory from './components/VersionHistory.vue'
 
 interface HistoryItem {
   content: string
@@ -404,6 +437,12 @@ const slashStartPos = ref(0)
 
 const uploadDialogVisible = ref(false)
 const uploadType = ref<'image' | 'attachment'>('image')
+
+const saveStatus = ref<SaveStatus>('saved')
+const saveTimer = ref<number | null>(null)
+const lastSavedContent = ref('')
+
+const versionHistoryVisible = ref(false)
 
 interface ContentFragment {
   type: 'text' | 'table'
@@ -1038,17 +1077,46 @@ function handleRedo() {
 function handleContentChange() {
   saveToHistory()
   
-  if (saveTimer) {
-    clearTimeout(saveTimer)
+  if (editContent.value !== lastSavedContent.value) {
+    saveStatus.value = 'unsaved'
   }
-  saveTimer = window.setTimeout(() => {
-    if (currentDocument.value) {
-      saveDocument({
-        title: currentDocument.value.title,
-        content: editContent.value,
-      })
-    }
+  
+  if (saveTimer.value) {
+    clearTimeout(saveTimer.value)
+  }
+  saveTimer.value = window.setTimeout(() => {
+    performSave()
   }, 2000)
+}
+
+async function performSave() {
+  if (!currentDocument.value) return
+  
+  if (editContent.value === lastSavedContent.value) {
+    saveStatus.value = 'saved'
+    return
+  }
+  
+  saveStatus.value = 'saving'
+  
+  try {
+    await saveDocument({
+      title: currentDocument.value.title,
+      content: editContent.value,
+    })
+    lastSavedContent.value = editContent.value
+    saveStatus.value = 'saved'
+  } catch (error) {
+    console.error('自动保存失败:', error)
+    saveStatus.value = 'error'
+  }
+}
+
+function handleVersionRestore() {
+  if (currentDocument.value) {
+    loadDocument(currentDocument.value.id)
+    ElMessage.success('版本已恢复')
+  }
 }
 
 function updateTableData(fragment: ContentFragment, newTableData: InteractiveTableData) {
@@ -1528,6 +1596,8 @@ watch(currentDocument, (doc) => {
   if (doc) {
     isSyncing.value = true
     editContent.value = doc.content
+    lastSavedContent.value = doc.content || ''
+    saveStatus.value = 'saved'
     console.log('[文档切换] 加载内容:', JSON.stringify(doc.content?.substring(0, 100)))
     
     if (useBlockEditor.value) {
@@ -1668,6 +1738,57 @@ onUnmounted(() => {
     margin-top: 8px;
     font-size: 13px;
     color: #909399;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    
+    .save-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      
+      &.saved {
+        color: #67c23a;
+      }
+      
+      &.saving {
+        color: #409eff;
+      }
+      
+      &.unsaved {
+        color: #e6a23c;
+      }
+      
+      &.error {
+        color: #f56c6c;
+      }
+      
+      .is-loading {
+        animation: rotate 1s linear infinite;
+      }
+    }
+    
+    .version-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      color: #409eff;
+      transition: color 0.2s;
+      
+      &:hover {
+        color: #66b1ff;
+      }
+    }
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 

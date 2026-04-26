@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { documentModel } from '../models/document.js'
 import { folderModel } from '../models/folder.js'
+import { versionModel } from '../models/version.js'
 
 const router = Router()
 
@@ -98,6 +99,13 @@ router.post('/', (req, res) => {
     
     console.log('[创建文档] 创建成功:', document)
     
+    versionModel.createVersion(
+      document.id,
+      document.title,
+      document.content,
+      '初始版本'
+    )
+    
     res.json({
       success: true,
       data: {
@@ -157,6 +165,15 @@ router.put('/:id', (req, res) => {
     }
     
     const updatedDocument = documentModel.updateDocument(parseInt(id), updates)
+    
+    if (content !== undefined && content !== document.content) {
+      versionModel.createVersion(
+        parseInt(id),
+        updatedDocument.title,
+        content,
+        null
+      )
+    }
     
     res.json({
       success: true,
