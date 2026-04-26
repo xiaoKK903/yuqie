@@ -91,8 +91,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'insert', markdown: string, cursorOffset: number): void
+  (e: 'insert', type: string, content: string, cursorOffset: number): void
   (e: 'upload', type: 'image' | 'attachment'): void
+  (e: 'table-select', rows: number, cols: number): void
 }>()
 
 const menuRef = ref<HTMLElement | null>(null)
@@ -164,56 +165,14 @@ function selectItem(item: MenuItem) {
     tableDropdownVisible.value = !tableDropdownVisible.value
     return
   } else if (item.key === 'status') {
-    const statusMarkdown = '`状态`'
-    emit('insert', statusMarkdown, 1)
+    emit('insert', 'status', '`状态`', 1)
   } else {
-    emit('insert', item.markdown, item.cursorOffset)
+    emit('insert', item.key, item.markdown, item.cursorOffset)
   }
 }
 
 function handleTableSelect(rows: number, cols: number) {
-  const tableId = 'table_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-  
-  const columns = []
-  for (let i = 0; i < cols; i++) {
-    columns.push({
-      id: 'col_' + (i + 1),
-      width: 150,
-      fieldType: 'text',
-      title: `字段${i + 1}`,
-    })
-  }
-  
-  const tableRows = []
-  for (let i = 0; i < rows; i++) {
-    tableRows.push({
-      id: 'row_' + (i + 1),
-      height: 40,
-    })
-  }
-  
-  const cells = []
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      cells.push({
-        rowId: 'row_' + (i + 1),
-        colId: 'col_' + (j + 1),
-        value: '',
-      })
-    }
-  }
-  
-  const tableData = {
-    id: tableId,
-    columns,
-    rows: tableRows,
-    cells,
-    mergeCells: [],
-  }
-  
-  const markdown = `\n:::table\n${JSON.stringify(tableData, null, 2)}\n:::\n`
-  
-  emit('insert', markdown, 0)
+  emit('table-select', rows, cols)
   tableDropdownVisible.value = false
 }
 

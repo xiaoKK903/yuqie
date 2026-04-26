@@ -84,3 +84,24 @@ export interface InteractiveTableProps {
   onChange?: (data: InteractiveTableData) => void
   onDelete?: () => void
 }
+
+export type BlockType = 'text' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'bullet' | 'numbered' | 'todo' | 'code' | 'quote' | 'table' | 'divider'
+
+export interface Block {
+  id: string
+  type: BlockType
+  content: string
+  meta?: {
+    language?: string
+    checked?: boolean
+    tableData?: InteractiveTableData
+  }
+}
+
+export interface BlockEditorProps {
+  blocks: Block[]
+  onChange: (blocks: Block[]) => void
+  onAddBlock?: (afterBlockId: string, type: BlockType) => void
+  onDeleteBlock?: (blockId: string) => void
+  onUpdateBlock?: (blockId: string, updates: Partial<Block>) => void
+}
