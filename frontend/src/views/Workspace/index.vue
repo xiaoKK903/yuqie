@@ -133,6 +133,7 @@
                 text 
                 @click="handleBold"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isBoldActive }"
               >
                 <strong>B</strong>
               </el-button>
@@ -142,6 +143,7 @@
                 text 
                 @click="handleItalic"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isItalicActive }"
               >
                 <em>I</em>
               </el-button>
@@ -151,6 +153,7 @@
                 text 
                 @click="handleStrikethrough"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isStrikethroughActive }"
               >
                 <span style="text-decoration: line-through;">S</span>
               </el-button>
@@ -160,6 +163,7 @@
                 text 
                 @click="handleUnderline"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isUnderlineActive }"
               >
                 <span style="text-decoration: underline;">U</span>
               </el-button>
@@ -223,7 +227,7 @@
         </div>
         
         <div class="doc-content">
-          <div class="editor-pane wysiwyg-editor">
+          <div class="editor-pane wysiwyg-editor" :style="editorStyle">
             <BlockEditor
               ref="blockEditorRef"
               v-model="editorBlocks"
@@ -301,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -370,6 +374,12 @@ const fontSize = ref(14)
 
 const useBlockEditor = ref(true)
 const editorBlocks = ref<Block[]>([])
+const isSyncing = ref(false)
+
+const isBoldActive = ref(false)
+const isItalicActive = ref(false)
+const isStrikethroughActive = ref(false)
+const isUnderlineActive = ref(false)
 
 const historyStack = ref<HistoryItem[]>([])
 const historyIndex = ref(-1)
@@ -1511,6 +1521,7 @@ function handleKeyDown(e: KeyboardEvent) {
 
 watch(currentDocument, (doc) => {
   if (doc) {
+    isSyncing.value = true
     editContent.value = doc.content
     console.log('[文档切换] 加载内容:', JSON.stringify(doc.content?.substring(0, 100)))
     
@@ -1524,21 +1535,54 @@ watch(currentDocument, (doc) => {
       cursorEnd: 0,
     }]
     historyIndex.value = 0
+    
+    nextTick(() => {
+      isSyncing.value = false
+    })
   }
 })
 
 watch(editorBlocks, (newBlocks) => {
+  if (isSyncing.value) return
+  
   if (useBlockEditor.value && newBlocks.length > 0) {
     const markdown = blocksToMarkdown(newBlocks)
     if (markdown !== editContent.value) {
+      isSyncing.value = true
       editContent.value = markdown
       handleContentChange()
+      nextTick(() => {
+        isSyncing.value = false
+      })
     }
   }
 }, { deep: true })
 
+function updateFormatState() {
+  if (!useBlockEditor.value) return
+  
+  try {
+    isBoldActive.value = document.queryCommandState('bold')
+    isItalicActive.value = document.queryCommandState('italic')
+    isStrikethroughActive.value = document.queryCommandState('strikeThrough')
+    isUnderlineActive.value = document.queryCommandState('underline')
+  } catch (e) {
+    console.warn('queryCommandState not supported:', e)
+  }
+}
+
 onMounted(() => {
   fetchTree()
+  
+  document.addEventListener('mouseup', updateFormatState)
+  document.addEventListener('keyup', updateFormatState)
+  document.addEventListener('selectionchange', updateFormatState)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mouseup', updateFormatState)
+  document.removeEventListener('keyup', updateFormatState)
+  document.removeEventListener('selectionchange', updateFormatState)
 })
 </script>
 
@@ -1677,6 +1721,11 @@ onMounted(() => {
     font-size: 14px;
     font-family: 'Times New Roman', serif;
   }
+}
+
+.format-btn-active {
+  background-color: #ecf5ff !important;
+  color: #409eff !important;
 }
 
 .doc-content {

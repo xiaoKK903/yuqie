@@ -46,7 +46,7 @@
               @keydown="handleKeyDown(block.id, $event)"
               @focus="handleBlockFocus(block.id)"
               @blur="handleBlockBlur(block.id)"
-              v-html="renderBlockContent(block)"
+              :data-block-id="block.id"
             ></div>
             
             <div v-if="block.type === 'todo'" class="todo-checkbox">
@@ -148,6 +148,7 @@ const uploadType = ref<'image' | 'attachment'>('image')
 
 watch(() => props.modelValue, (newVal) => {
   blocks.value = JSON.parse(JSON.stringify(newVal || []))
+  syncBlockContentToDOM()
 }, { deep: true })
 
 watch(blocks, (newVal) => {
@@ -156,6 +157,19 @@ watch(blocks, (newVal) => {
 
 function generateId(): string {
   return 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+}
+
+function syncBlockContentToDOM() {
+  nextTick(() => {
+    blocks.value.forEach((block) => {
+      if (block.type !== 'table' && block.type !== 'code' && block.type !== 'divider') {
+        const el = document.querySelector(`[data-block-id="${block.id}"]`) as HTMLElement
+        if (el && block.content && el.innerText !== block.content) {
+          el.innerText = block.content
+        }
+      }
+    })
+  })
 }
 
 function createDefaultTable(): InteractiveTableData {
@@ -304,22 +318,32 @@ function handleKeyDown(blockId: string, e: KeyboardEvent) {
     const selection = window.getSelection()
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0)
-      const afterCursor = range.extractContents()
-      const afterText = afterCursor.textContent || ''
+      const fullText = target.innerText
+      const cursorOffset = range.startOffset
       
-      if (afterText) {
-        blocks.value[blockIndex].content = target.innerText
-        newBlock.content = afterText
-      }
+      const beforeText = fullText.substring(0, cursorOffset)
+      const afterText = fullText.substring(cursorOffset)
+      
+      blocks.value[blockIndex].content = beforeText
+      newBlock.content = afterText
     }
     
     blocks.value.splice(blockIndex + 1, 0, newBlock)
     activeBlockId.value = newBlock.id
     
     nextTick(() => {
-      const newBlockEl = document.querySelectorAll('.editable-content')[blockIndex + 1]
+      const newBlockEl = document.querySelector(`[data-block-id="${newBlock.id}"]`) as HTMLElement
       if (newBlockEl) {
-        (newBlockEl as HTMLElement).focus()
+        if (newBlock.content) {
+          newBlockEl.innerText = newBlock.content
+        }
+        newBlockEl.focus()
+        
+        const range = document.createRange()
+        range.setStart(newBlockEl, 0)
+        range.collapse(true)
+        selection?.removeAllRanges()
+        selection?.addRange(range)
       }
     })
   }
