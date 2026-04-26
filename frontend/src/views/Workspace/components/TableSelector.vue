@@ -62,7 +62,7 @@ function handleCellClick(row: number, col: number) {
   padding: 12px;
   background: #fff;
   border-radius: 4px;
-  min-width: 200px;
+  width: 220px;
 }
 
 .table-grid {
@@ -78,8 +78,8 @@ function handleCellClick(row: number, col: number) {
 }
 
 .table-cell {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border: 1px solid #dcdfe6;
   border-radius: 2px;
   background: #fff;
