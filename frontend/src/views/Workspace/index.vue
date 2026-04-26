@@ -376,7 +376,7 @@ const contextMenu = ref({
 
 const slashMenuVisible = ref(false)
 const slashMenuPosition = ref({ x: 0, y: 0 })
-const slashMenuCursorPos = ref(0)
+const slashStartPos = ref(0)
 
 const uploadDialogVisible = ref(false)
 const uploadType = ref<'image' | 'attachment'>('image')
@@ -972,7 +972,7 @@ function getCursorPosition() {
 function showSlashMenu() {
   if (!editorRef.value) return
   
-  slashMenuCursorPos.value = editorRef.value.selectionStart
+  slashStartPos.value = editorRef.value.selectionStart - 1
   const pos = getCursorPosition()
   slashMenuPosition.value = { x: pos.x, y: pos.y }
   slashMenuVisible.value = true
@@ -985,13 +985,15 @@ function hideSlashMenu() {
 function handleSlashMenuInsert(markdown: string, cursorOffset: number) {
   if (!editorRef.value) return
   
-  const cursorPos = slashMenuCursorPos.value
-  const beforeText = editContent.value.substring(0, cursorPos - 1)
-  const afterText = editContent.value.substring(cursorPos)
+  const start = slashStartPos.value
+  const end = editorRef.value.selectionStart
+  
+  const beforeText = editContent.value.substring(0, start)
+  const afterText = editContent.value.substring(end)
   
   editContent.value = beforeText + markdown + afterText
   
-  const newCursorPos = cursorPos - 1 + cursorOffset
+  const newCursorPos = start + cursorOffset
   
   nextTick(() => {
     if (editorRef.value) {
@@ -1021,18 +1023,34 @@ function handleFileUpload(e: Event) {
   const file = files[0]
   const fileName = file.name
   
-  let markdown = ''
   if (uploadType.value === 'image') {
-    markdown = `![${fileName}](./uploads/${fileName})`
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result as string
+      const markdown = `![${fileName}](${base64})`
+      
+      const start = slashStartPos.value
+      const beforeText = editContent.value.substring(0, start)
+      const afterText = editContent.value.substring(start)
+      
+      editContent.value = beforeText + markdown + afterText
+      
+      ElMessage.success('图片已添加')
+      uploadDialogVisible.value = false
+    }
+    reader.readAsDataURL(file)
   } else {
-    markdown = `[${fileName}](./uploads/${fileName})`
+    const markdown = `[${fileName}](./uploads/${fileName})`
+    
+    const start = slashStartPos.value
+    const beforeText = editContent.value.substring(0, start)
+    const afterText = editContent.value.substring(start)
+    
+    editContent.value = beforeText + markdown + afterText
+    
+    ElMessage.success('附件已添加')
+    uploadDialogVisible.value = false
   }
-  
-  saveCursorPosition()
-  insertTextAtCursor(markdown, 0)
-  
-  ElMessage.success(`${uploadType.value === 'image' ? '图片' : '附件'}已添加`)
-  uploadDialogVisible.value = false
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -1048,12 +1066,8 @@ function handleKeyDown(e: KeyboardEvent) {
       return
     }
     if (e.key === 'Backspace') {
-      const cursorPos = slashMenuCursorPos.value
-      if (start <= cursorPos && start > 0) {
-        const charBefore = value.substring(start - 1, start)
-        if (charBefore === '/') {
-          hideSlashMenu()
-        }
+      if (start <= slashStartPos.value + 1 && start > 0) {
+        hideSlashMenu()
       }
     }
   }
