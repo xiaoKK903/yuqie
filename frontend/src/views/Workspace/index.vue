@@ -10,7 +10,7 @@
           @input="handleSearch"
         />
       </div>
-      <div class="toolbar">
+      <div class="sidebar-toolbar">
         <el-button text :icon="FolderAdd" @click="addRootFolder">
           新建文件夹
         </el-button>
@@ -55,69 +55,189 @@
             <span>最后更新: {{ formatTime(currentDocument.updatedAt) }}</span>
           </div>
         </div>
+        
         <div class="editor-toolbar">
-          <el-button-group>
-            <el-button text @click="insertHeading(1)">H1</el-button>
-            <el-button text @click="insertHeading(2)">H2</el-button>
-            <el-button text @click="insertHeading(3)">H3</el-button>
-            <el-button text @click="insertBold"><strong>B</strong></el-button>
-            <el-button text @click="insertItalic"><em>I</em></el-button>
-            <el-button text @click="insertCodeBlock">代码块</el-button>
-            <el-button text @click="insertList">列表</el-button>
-            <el-button text @click="insertQuote">引用</el-button>
-          </el-button-group>
-        </div>
-        <div class="doc-content">
-          <div class="editor-pane">
-            <div class="markdown-editor" ref="editorContainer">
-              <textarea
-                ref="editorRef"
-                v-model="editContent"
-                class="editor-textarea"
-                placeholder="开始编写文档，支持 Markdown 语法..."
-                @input="handleContentChange"
-                @keydown="handleKeyDown"
-                @click="updateCursorPosition"
-              />
-            </div>
+          <div class="toolbar-group">
+            <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom">
+              <el-button 
+                text 
+                :disabled="!canUndo" 
+                @click="handleUndo"
+                class="toolbar-btn"
+              >
+                <el-icon><ArrowLeft /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="重做 (Ctrl+Y)" placement="bottom">
+              <el-button 
+                text 
+                :disabled="!canRedo" 
+                @click="handleRedo"
+                class="toolbar-btn"
+              >
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
+            </el-tooltip>
           </div>
-          <div class="preview-pane">
-            <div class="markdown-body" v-html="renderedContent"></div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-select 
+              v-model="fontFamily" 
+              placeholder="字体" 
+              clearable 
+              style="width: 120px;"
+              size="small"
+              @change="handleFontFamilyChange"
+            >
+              <el-option label="默认字体" value="default" />
+              <el-option label="宋体" value="SimSun" />
+              <el-option label="微软雅黑" value="Microsoft YaHei" />
+              <el-option label="黑体" value="SimHei" />
+              <el-option label="楷体" value="KaiTi" />
+              <el-option label="等宽字体" value="monospace" />
+            </el-select>
+          </div>
+          
+          <div class="toolbar-group">
+            <el-select 
+              v-model="fontSize" 
+              placeholder="字号"
+              size="small"
+              style="width: 80px;"
+              @change="handleFontSizeChange"
+            >
+              <el-option label="10" :value="10" />
+              <el-option label="12" :value="12" />
+              <el-option label="13" :value="13" />
+              <el-option label="14" :value="14" />
+              <el-option label="16" :value="16" />
+              <el-option label="18" :value="18" />
+              <el-option label="20" :value="20" />
+              <el-option label="24" :value="24" />
+              <el-option label="28" :value="28" />
+              <el-option label="32" :value="32" />
+              <el-option label="36" :value="36" />
+              <el-option label="48" :value="48" />
+              <el-option label="64" :value="64" />
+              <el-option label="72" :value="72" />
+            </el-select>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-tooltip content="加粗 (Ctrl+B)" placement="bottom">
+              <el-button 
+                text 
+                @click="handleBold"
+                class="toolbar-btn format-btn"
+              >
+                <strong>B</strong>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="斜体 (Ctrl+I)" placement="bottom">
+              <el-button 
+                text 
+                @click="handleItalic"
+                class="toolbar-btn format-btn"
+              >
+                <em>I</em>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="删除线" placement="bottom">
+              <el-button 
+                text 
+                @click="handleStrikethrough"
+                class="toolbar-btn format-btn"
+              >
+                <span style="text-decoration: line-through;">S</span>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="下划线 (Ctrl+U)" placement="bottom">
+              <el-button 
+                text 
+                @click="handleUnderline"
+                class="toolbar-btn format-btn"
+              >
+                <span style="text-decoration: underline;">U</span>
+              </el-button>
+            </el-tooltip>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-tooltip content="标题 H1" placement="bottom">
+              <el-button text @click="insertHeading(1)" class="toolbar-btn">
+                <span style="font-size: 18px; font-weight: bold;">H1</span>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="标题 H2" placement="bottom">
+              <el-button text @click="insertHeading(2)" class="toolbar-btn">
+                <span style="font-size: 16px; font-weight: bold;">H2</span>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="标题 H3" placement="bottom">
+              <el-button text @click="insertHeading(3)" class="toolbar-btn">
+                <span style="font-size: 14px; font-weight: bold;">H3</span>
+              </el-button>
+            </el-tooltip>
+          </div>
+          
+          <div class="toolbar-divider"></div>
+          
+          <div class="toolbar-group">
+            <el-tooltip content="代码块" placement="bottom">
+              <el-button text @click="insertCodeBlock" class="toolbar-btn">
+                <el-icon><Share /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="无序列表" placement="bottom">
+              <el-button text @click="insertList" class="toolbar-btn">
+                <el-icon><List /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="有序列表" placement="bottom">
+              <el-button text @click="insertOrderedList" class="toolbar-btn">
+                <el-icon><Operation /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="引用" placement="bottom">
+              <el-button text @click="insertQuote" class="toolbar-btn">
+                <el-icon><ChatDotRound /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="链接" placement="bottom">
+              <el-button text @click="insertLink" class="toolbar-btn">
+                <el-icon><Link /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="分割线" placement="bottom">
+              <el-button text @click="insertHR" class="toolbar-btn">
+                <el-icon><Minus /></el-icon>
+              </el-button>
+            </el-tooltip>
           </div>
         </div>
         
-        <div class="insert-code-block-dialog" v-if="showCodeBlockDialog">
-          <div class="dialog-overlay" @click="closeCodeBlockDialog"></div>
-          <div class="dialog-content">
-            <h3>插入代码块</h3>
-            <div class="dialog-form">
-              <el-select v-model="selectedLanguage" placeholder="选择语言" clearable style="width: 200px;">
-                <el-option label="JavaScript" value="javascript" />
-                <el-option label="TypeScript" value="typescript" />
-                <el-option label="Python" value="python" />
-                <el-option label="HTML" value="html" />
-                <el-option label="CSS" value="css" />
-                <el-option label="Java" value="java" />
-                <el-option label="JSON" value="json" />
-                <el-option label="SQL" value="sql" />
-                <el-option label="Shell" value="shell" />
-                <el-option label="Markdown" value="markdown" />
-                <el-option label="纯文本" value="text" />
-              </el-select>
-              <div class="code-editor-wrapper" ref="codeEditorWrapper">
-                <MonacoEditor
-                  :value="codeBlockContent"
-                  language="javascript"
-                  :options="codeEditorOptions"
-                  @change="onCodeEditorChange"
-                  style="height: 200px; width: 100%;"
-                />
-              </div>
-            </div>
-            <div class="dialog-actions">
-              <el-button @click="closeCodeBlockDialog">取消</el-button>
-              <el-button type="primary" @click="insertCodeBlockAtCursor">插入</el-button>
-            </div>
+        <div class="doc-content">
+          <div class="editor-pane">
+            <textarea
+              ref="editorRef"
+              v-model="editContent"
+              class="markdown-editor"
+              :style="editorStyle"
+              placeholder="开始编写文档，支持 Markdown 语法...&#10;&#10;示例：&#10;# 一级标题&#10;## 二级标题&#10;**粗体文字**&#10;*斜体文字*&#10;&#10;输入 ``` 并回车可创建代码块"
+              @input="handleContentChange"
+              @keydown="handleKeyDown"
+              @click="saveCursorPosition"
+              @blur="saveCursorPosition"
+            />
+          </div>
+          <div class="preview-pane">
+            <div class="markdown-body" :style="previewStyle" v-html="renderedContent"></div>
           </div>
         </div>
       </template>
@@ -145,19 +265,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   FolderAdd,
   DocumentAdd,
   Loading,
+  ArrowLeft,
+  ArrowRight,
+  List,
+  Operation,
+  ChatDotRound,
+  Link,
+  Minus,
+  Share,
 } from '@element-plus/icons-vue'
-import MonacoEditor from '@guolao/vue-monaco-editor'
-import * as monaco from 'monaco-editor'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
-import 'highlight.js/styles/github.css'
 import 'highlight.js/styles/atom-one-dark.css'
 import { useKnowledgeStore } from '@/store/knowledge'
 import { folderApi, documentApi, treeApi } from '@/api'
@@ -165,38 +290,10 @@ import type { TreeNode as TreeNodeType } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 
-if (typeof window !== 'undefined') {
-  ;(self as any).MonacoEnvironment = {
-    getWorkerUrl: function (_moduleId: string, label: string) {
-      switch (label) {
-        case 'json':
-          return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(`
-            importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/json/json.worker.js');
-          `)
-        case 'css':
-        case 'scss':
-        case 'less':
-          return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(`
-            importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/css/css.worker.js');
-          `)
-        case 'html':
-        case 'handlebars':
-        case 'razor':
-          return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(`
-            importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/html/html.worker.js');
-          `)
-        case 'typescript':
-        case 'javascript':
-          return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(`
-            importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/language/typescript/ts.worker.js');
-          `)
-        default:
-          return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(`
-            importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.worker.js');
-          `)
-      }
-    }
-  }
+interface HistoryItem {
+  content: string
+  cursorStart: number
+  cursorEnd: number
 }
 
 const md = new MarkdownIt({
@@ -206,75 +303,33 @@ const md = new MarkdownIt({
   highlight: function (str: string, lang: string) {
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return '<pre class="hljs code-block-container"><code>' +
+        return '<pre class="hljs"><code>' +
           hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
           '</code></pre>'
       } catch (__) {}
     }
-    return '<pre class="hljs code-block-container"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
   }
 })
-
-md.renderer.rules.fence = function (tokens, idx, options, env, self) {
-  const token = tokens[idx]
-  const info = token.info ? md.utils.unescapeAll(token.info).trim() : ''
-  const langName = info ? info.split(/\s+/g)[0] : ''
-  const langAttrs = info ? info.slice(langName.length).trim() : ''
-  
-  const code = token.content
-  
-  let highlighted: string
-  let codeClass = 'hljs code-block-container'
-  
-  if (options.highlight) {
-    highlighted = options.highlight(code, langName, langAttrs)
-    if (highlighted.indexOf('<pre') === 0) {
-      return highlighted + '\n'
-    }
-  } else {
-    highlighted = md.utils.escapeHtml(code)
-  }
-  
-  if (langName && hljs.getLanguage(langName)) {
-    try {
-      highlighted = hljs.highlight(code, { language: langName, ignoreIllegals: true }).value
-      codeClass += ' has-language'
-    } catch (__) {}
-  }
-
-  let langDisplay = langName
-  if (!langDisplay || langDisplay === 'text') {
-    langDisplay = 'Plain Text'
-  } else {
-    langDisplay = langDisplay.charAt(0).toUpperCase() + langDisplay.slice(1)
-  }
-
-  return `<div class="code-block-wrapper">
-    <div class="code-block-header">
-      <span class="code-block-lang">${langDisplay}</span>
-      <button class="code-block-copy" onclick="navigator.clipboard.writeText(this.closest('.code-block-wrapper').querySelector('code').textContent).then(() => { this.textContent = '已复制'; setTimeout(() => this.textContent = '复制', 2000) }).catch(() => { this.textContent = '失败' })">复制</button>
-    </div>
-    <pre class="${codeClass}"><code>${highlighted}</code></pre>
-  </div>\n`
-}
 
 const store = useKnowledgeStore()
 const { treeData, currentDocument, loading, activeNode } = storeToRefs(store)
 const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode } = store
 
 const editorRef = ref<HTMLTextAreaElement | null>(null)
-const editorContainer = ref<HTMLElement | null>(null)
-const codeEditorWrapper = ref<HTMLElement | null>(null)
-
 const searchKeyword = ref('')
 const editTitle = ref('')
 const editContent = ref('')
 const isEditingTitle = ref(false)
+const cursorStart = ref(0)
+const cursorEnd = ref(0)
 
-const showCodeBlockDialog = ref(false)
-const selectedLanguage = ref('javascript')
-const codeBlockContent = ref('')
-const cursorPosition = ref({ start: 0, end: 0 })
+const fontFamily = ref('default')
+const fontSize = ref(14)
+
+const historyStack = ref<HistoryItem[]>([])
+const historyIndex = ref(-1)
+const isHistoryAction = ref(false)
 
 const contextMenu = ref({
   visible: false,
@@ -284,31 +339,29 @@ const contextMenu = ref({
   isRoot: false,
 })
 
-const codeEditorOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
-  theme: 'vs-dark',
-  language: 'javascript',
-  fontSize: 14,
-  fontFamily: 'Consolas, "Courier New", monospace',
-  minimap: { enabled: false },
-  lineNumbers: 'on',
-  scrollBeyondLastLine: false,
-  automaticLayout: true,
-  wordWrap: 'on',
-  tabSize: 2,
-  insertSpaces: true,
-}
+const canUndo = computed(() => historyIndex.value > 0)
+const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1)
 
-watch(selectedLanguage, (newLang) => {
-  codeEditorOptions.language = newLang || 'text'
-})
+const editorStyle = computed(() => ({
+  fontSize: `${fontSize.value}px`,
+  fontFamily: fontFamily.value === 'default' ? 'inherit' : fontFamily.value,
+}))
+
+const previewStyle = computed(() => ({
+  fontSize: `${fontSize.value}px`,
+}))
 
 const renderedContent = computed(() => {
   const content = editContent.value || ''
+  console.log('[Markdown 渲染] 原始内容:', JSON.stringify(content.substring(0, 100)))
+  
   try {
-    return md.render(content)
+    const result = md.render(content)
+    console.log('[Markdown 渲染] 渲染结果:', JSON.stringify(result.substring(0, 200)))
+    return result
   } catch (error) {
-    console.error('Markdown 渲染错误:', error)
-    return `<div class="error-message">渲染错误: ${error}</div>`
+    console.error('[Markdown 渲染] 错误:', error)
+    return `<div class="error-message">渲染错误</div>`
   }
 })
 
@@ -444,7 +497,6 @@ async function handleAddDocument(parentNode: TreeNodeType | null) {
 
 function addRootFolder() {
   console.log('[addRootFolder] activeNode.value:', activeNode.value)
-  console.log('[addRootFolder] activeNode.value?.type:', activeNode.value?.type)
   const parentNode = activeNode.value?.type === 'folder' ? activeNode.value : null
   console.log('[addRootFolder] parentNode:', parentNode)
   handleAddFolder(parentNode)
@@ -452,7 +504,6 @@ function addRootFolder() {
 
 function addRootDocument() {
   console.log('[addRootDocument] activeNode.value:', activeNode.value)
-  console.log('[addRootDocument] activeNode.value?.type:', activeNode.value?.type)
   const parentNode = activeNode.value?.type === 'folder' ? activeNode.value : null
   console.log('[addRootDocument] parentNode:', parentNode)
   handleAddDocument(parentNode)
@@ -484,10 +535,9 @@ async function handleRename(node: TreeNodeType) {
 
 async function handleDelete(node: TreeNodeType) {
   const typeText = node.type === 'folder' ? '文件夹' : '文档'
-  const childrenCount = node.children ? node.children.length : 0
   let message = `确定要删除「${node.name}」吗？`
   
-  if (node.type === 'folder' && childrenCount > 0) {
+  if (node.type === 'folder' && node.children && node.children.length > 0) {
     message = `确定要删除「${node.name}」及其所有子文件夹和文档吗？此操作不可恢复。`
   }
   
@@ -577,7 +627,86 @@ function cancelEditTitle() {
 
 let saveTimer: number | null = null
 
+function saveCursorPosition() {
+  if (editorRef.value) {
+    cursorStart.value = editorRef.value.selectionStart
+    cursorEnd.value = editorRef.value.selectionEnd
+  }
+}
+
+function saveToHistory() {
+  if (isHistoryAction.value) return
+  
+  if (historyIndex.value < historyStack.value.length - 1) {
+    historyStack.value = historyStack.value.slice(0, historyIndex.value + 1)
+  }
+  
+  saveCursorPosition()
+  
+  historyStack.value.push({
+    content: editContent.value,
+    cursorStart: cursorStart.value,
+    cursorEnd: cursorEnd.value,
+  })
+  
+  if (historyStack.value.length > 50) {
+    historyStack.value.shift()
+  } else {
+    historyIndex.value = historyStack.value.length - 1
+  }
+}
+
+function handleUndo() {
+  if (!canUndo.value) return
+  
+  isHistoryAction.value = true
+  
+  historyIndex.value--
+  const item = historyStack.value[historyIndex.value]
+  
+  if (item) {
+    editContent.value = item.content
+    cursorStart.value = item.cursorStart
+    cursorEnd.value = item.cursorEnd
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = cursorStart.value
+        editorRef.value.selectionEnd = cursorEnd.value
+      }
+      isHistoryAction.value = false
+    })
+  }
+}
+
+function handleRedo() {
+  if (!canRedo.value) return
+  
+  isHistoryAction.value = true
+  
+  historyIndex.value++
+  const item = historyStack.value[historyIndex.value]
+  
+  if (item) {
+    editContent.value = item.content
+    cursorStart.value = item.cursorStart
+    cursorEnd.value = item.cursorEnd
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = cursorStart.value
+        editorRef.value.selectionEnd = cursorEnd.value
+      }
+      isHistoryAction.value = false
+    })
+  }
+}
+
 function handleContentChange() {
+  saveToHistory()
+  
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
@@ -591,93 +720,162 @@ function handleContentChange() {
   }, 2000)
 }
 
-function updateCursorPosition() {
-  if (editorRef.value) {
-    cursorPosition.value = {
-      start: editorRef.value.selectionStart,
-      end: editorRef.value.selectionEnd,
-    }
-  }
-}
-
-function insertTextAtCursor(text: string, before: string = '', after: string = '') {
-  if (!editorRef.value) return
+function insertTextAtCursor(text: string, selectLength: number = 0) {
+  saveCursorPosition()
   
-  const start = editorRef.value.selectionStart
-  const end = editorRef.value.selectionEnd
-  const selectedText = editContent.value.substring(start, end)
+  const start = cursorStart.value
+  const end = cursorEnd.value
+  const currentText = editContent.value
   
-  let newText: string
-  let newCursorPos: number
+  const before = currentText.substring(0, start)
+  const after = currentText.substring(end)
   
-  if (selectedText) {
-    newText = editContent.value.substring(0, start) + before + selectedText + after + editContent.value.substring(end)
-    newCursorPos = start + before.length + selectedText.length + after.length
-  } else {
-    newText = editContent.value.substring(0, start) + text + editContent.value.substring(end)
-    newCursorPos = start + text.length
-  }
+  editContent.value = before + text + after
   
-  editContent.value = newText
+  const newCursorPos = start + (selectLength > 0 ? selectLength : text.length)
   
   nextTick(() => {
     if (editorRef.value) {
       editorRef.value.focus()
       editorRef.value.selectionStart = newCursorPos
       editorRef.value.selectionEnd = newCursorPos
+      cursorStart.value = newCursorPos
+      cursorEnd.value = newCursorPos
+    }
+  })
+}
+
+function wrapWithTag(beforeTag: string, afterTag: string, defaultText: string) {
+  saveCursorPosition()
+  
+  const start = cursorStart.value
+  const end = cursorEnd.value
+  const currentText = editContent.value
+  
+  const before = currentText.substring(0, start)
+  const selected = currentText.substring(start, end)
+  const after = currentText.substring(end)
+  
+  const text = selected || defaultText
+  editContent.value = before + beforeTag + text + afterTag + after
+  
+  const newStart = start + beforeTag.length
+  const newEnd = start + beforeTag.length + text.length
+  
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus()
+      editorRef.value.selectionStart = newStart
+      editorRef.value.selectionEnd = newEnd
+      cursorStart.value = newStart
+      cursorEnd.value = newEnd
+    }
+  })
+}
+
+function handleBold() {
+  wrapWithTag('**', '**', '粗体文字')
+}
+
+function handleItalic() {
+  wrapWithTag('*', '*', '斜体文字')
+}
+
+function handleStrikethrough() {
+  wrapWithTag('~~', '~~', '删除线文字')
+}
+
+function handleUnderline() {
+  wrapWithTag('<u>', '</u>', '下划线文字')
+}
+
+function handleFontFamilyChange() {
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus()
+    }
+  })
+}
+
+function handleFontSizeChange() {
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus()
     }
   })
 }
 
 function insertHeading(level: number) {
   const prefix = '#'.repeat(level) + ' '
-  insertTextAtCursor(prefix + '标题内容', prefix, '')
-}
-
-function insertBold() {
-  insertTextAtCursor('**粗体文字**', '**', '**')
-}
-
-function insertItalic() {
-  insertTextAtCursor('*斜体文字*', '*', '*')
+  const text = prefix + '标题'
+  insertTextAtCursor(text, prefix.length)
 }
 
 function insertList() {
-  insertTextAtCursor('- 列表项\n- 列表项\n')
+  const text = '\n- 列表项1\n- 列表项2\n- 列表项3'
+  insertTextAtCursor(text, text.length)
+}
+
+function insertOrderedList() {
+  const text = '\n1. 列表项1\n2. 列表项2\n3. 列表项3'
+  insertTextAtCursor(text, text.length)
 }
 
 function insertQuote() {
-  insertTextAtCursor('> 引用内容\n')
+  const text = '\n> 引用内容'
+  insertTextAtCursor(text, text.length)
 }
 
 function insertCodeBlock() {
-  updateCursorPosition()
-  showCodeBlockDialog.value = true
-  codeBlockContent.value = ''
-  selectedLanguage.value = 'javascript'
+  const text = '\n```javascript\n// 在此输入代码\nconst hello = "world";\nconsole.log(hello);\n```\n'
+  insertTextAtCursor(text, text.length)
 }
 
-function closeCodeBlockDialog() {
-  showCodeBlockDialog.value = false
-  codeBlockContent.value = ''
+async function insertLink() {
+  try {
+    const { value: url } = await ElMessageBox.prompt('请输入链接地址', '插入链接', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputValue: 'https://',
+      inputPattern: /.+/,
+      inputErrorMessage: '链接地址不能为空',
+    })
+    
+    saveCursorPosition()
+    
+    const start = cursorStart.value
+    const end = cursorEnd.value
+    const currentText = editContent.value
+    
+    const before = currentText.substring(0, start)
+    const selected = currentText.substring(start, end)
+    const after = currentText.substring(end)
+    
+    const linkText = selected || '链接文字'
+    const link = `[${linkText}](${url})`
+    
+    editContent.value = before + link + after
+    
+    const newStart = start + 1
+    const newEnd = start + 1 + linkText.length
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = newStart
+        editorRef.value.selectionEnd = newEnd
+        cursorStart.value = newStart
+        cursorEnd.value = newEnd
+      }
+    })
+  } catch {
+    // 用户取消
+  }
 }
 
-function onCodeEditorChange(value: string | undefined) {
-  codeBlockContent.value = value || ''
-}
-
-function insertCodeBlockAtCursor() {
-  const lang = selectedLanguage.value || ''
-  const code = codeBlockContent.value || ''
-  
-  const fenceStart = lang ? `\`\`\`${lang}\n` : '```\n'
-  const fenceEnd = '\n```\n'
-  
-  const codeBlock = fenceStart + code + fenceEnd
-  
-  insertTextAtCursor(codeBlock)
-  closeCodeBlockDialog()
-  ElMessage.success('代码块已插入')
+function insertHR() {
+  const text = '\n---\n'
+  insertTextAtCursor(text, text.length)
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -686,6 +884,39 @@ function handleKeyDown(e: KeyboardEvent) {
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
   
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'z' && !e.shiftKey) {
+      e.preventDefault()
+      handleUndo()
+      return
+    }
+    if (e.key === 'z' && e.shiftKey) {
+      e.preventDefault()
+      handleRedo()
+      return
+    }
+    if (e.key === 'y') {
+      e.preventDefault()
+      handleRedo()
+      return
+    }
+    if (e.key === 'b') {
+      e.preventDefault()
+      handleBold()
+      return
+    }
+    if (e.key === 'i') {
+      e.preventDefault()
+      handleItalic()
+      return
+    }
+    if (e.key === 'u') {
+      e.preventDefault()
+      handleUnderline()
+      return
+    }
+  }
+  
   if (e.key === 'Enter') {
     const lines = value.substring(0, start).split('\n')
     const currentLine = lines[lines.length - 1] || ''
@@ -693,16 +924,20 @@ function handleKeyDown(e: KeyboardEvent) {
     const codeBlockMatch = currentLine.match(/^```(\w*)$/)
     if (codeBlockMatch && end === start) {
       e.preventDefault()
+      
       const lang = codeBlockMatch[1] || ''
       const newContent = value.substring(0, start) + '\n\n```' + value.substring(end)
+      
       editContent.value = newContent
       
       nextTick(() => {
         if (editorRef.value) {
           const newCursorPos = start + 1
+          editorRef.value.focus()
           editorRef.value.selectionStart = newCursorPos
           editorRef.value.selectionEnd = newCursorPos
-          editorRef.value.focus()
+          cursorStart.value = newCursorPos
+          cursorEnd.value = newCursorPos
         }
       })
       
@@ -714,13 +949,21 @@ function handleKeyDown(e: KeyboardEvent) {
   if (e.key === 'Tab') {
     e.preventDefault()
     const tabSpace = '  '
-    editContent.value = value.substring(0, start) + tabSpace + value.substring(end)
+    
+    saveCursorPosition()
+    const tabStart = cursorStart.value
+    const tabEnd = cursorEnd.value
+    
+    editContent.value = value.substring(0, tabStart) + tabSpace + value.substring(tabEnd)
     
     nextTick(() => {
       if (editorRef.value) {
-        const newPos = start + tabSpace.length
+        const newPos = tabStart + tabSpace.length
+        editorRef.value.focus()
         editorRef.value.selectionStart = newPos
         editorRef.value.selectionEnd = newPos
+        cursorStart.value = newPos
+        cursorEnd.value = newPos
       }
     })
   }
@@ -729,6 +972,14 @@ function handleKeyDown(e: KeyboardEvent) {
 watch(currentDocument, (doc) => {
   if (doc) {
     editContent.value = doc.content
+    console.log('[文档切换] 加载内容:', JSON.stringify(doc.content?.substring(0, 100)))
+    
+    historyStack.value = [{
+      content: doc.content || '',
+      cursorStart: 0,
+      cursorEnd: 0,
+    }]
+    historyIndex.value = 0
   }
 })
 
@@ -759,7 +1010,7 @@ onMounted(() => {
   border-bottom: 1px solid #e4e7ed;
 }
 
-.toolbar {
+.sidebar-toolbar {
   padding: 8px 12px;
   border-bottom: 1px solid #e4e7ed;
   display: flex;
@@ -818,9 +1069,60 @@ onMounted(() => {
 }
 
 .editor-toolbar {
-  padding: 8px 32px;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
   border-bottom: 1px solid #e4e7ed;
-  background-color: #fafafa;
+  background-color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background-color: #e4e7ed;
+  margin: 0 8px;
+}
+
+.toolbar-btn {
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  
+  &:hover:not(:disabled) {
+    background-color: #f5f7fa;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.format-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  
+  strong, em, span {
+    font-size: 14px;
+    font-family: 'Times New Roman', serif;
+  }
 }
 
 .doc-content {
@@ -833,24 +1135,18 @@ onMounted(() => {
 .preview-pane {
   flex: 1;
   overflow-y: auto;
+  padding: 24px 32px;
 }
 
 .editor-pane {
   border-right: 1px solid #e4e7ed;
   background-color: #fafafa;
-  display: flex;
-  flex-direction: column;
 }
 
 .markdown-editor {
-  flex: 1;
-  position: relative;
-}
-
-.editor-textarea {
   width: 100%;
   height: 100%;
-  min-height: 100%;
+  min-height: 400px;
   border: none;
   outline: none;
   resize: none;
@@ -861,72 +1157,12 @@ onMounted(() => {
   color: #333;
   white-space: pre-wrap;
   word-wrap: break-word;
-  padding: 24px 32px;
   box-sizing: border-box;
+  transition: font-size 0.2s;
 }
 
 .preview-pane {
   background-color: #fff;
-  padding: 24px 32px;
-}
-
-.insert-code-block-dialog {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 9999;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  
-  .dialog-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-  }
-  
-  .dialog-content {
-    position: relative;
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    width: 600px;
-    max-width: 90vw;
-    padding: 20px;
-    z-index: 1;
-    
-    h3 {
-      margin: 0 0 16px 0;
-      font-size: 18px;
-      font-weight: 600;
-      color: #303133;
-    }
-    
-    .dialog-form {
-      margin-bottom: 16px;
-      
-      .el-select {
-        margin-bottom: 12px;
-      }
-      
-      .code-editor-wrapper {
-        border: 1px solid #dcdfe6;
-        border-radius: 4px;
-        overflow: hidden;
-      }
-    }
-    
-    .dialog-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-  }
 }
 </style>
 
@@ -936,6 +1172,8 @@ onMounted(() => {
   line-height: 1.8;
   font-size: 15px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  word-wrap: break-word;
+  transition: font-size 0.2s;
   
   h1, h2, h3, h4, h5, h6 {
     margin-top: 24px;
@@ -949,16 +1187,24 @@ onMounted(() => {
     font-size: 2em;
     padding-bottom: 0.3em;
     border-bottom: 1px solid #eaecef;
+    font-weight: bold;
   }
   
   h2 {
     font-size: 1.5em;
     padding-bottom: 0.3em;
     border-bottom: 1px solid #eaecef;
+    font-weight: bold;
   }
   
   h3 {
     font-size: 1.25em;
+    font-weight: bold;
+  }
+  
+  h4 {
+    font-size: 1em;
+    font-weight: bold;
   }
   
   p {
@@ -990,68 +1236,21 @@ onMounted(() => {
     overflow: auto;
     font-size: 85%;
     line-height: 1.45;
-    background-color: #f6f8fa;
+    background-color: #282c34;
     border-radius: 6px;
     margin-bottom: 16px;
+    font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
     
     code {
       padding: 0;
       background: transparent;
+      font-family: inherit;
     }
   }
   
-  .code-block-wrapper {
-    margin: 16px 0;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    
-    .code-block-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 16px;
-      background-color: #1e1e1e;
-      border-bottom: 1px solid #333;
-      
-      .code-block-lang {
-        font-size: 13px;
-        color: #888;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-      
-      .code-block-copy {
-        padding: 4px 12px;
-        font-size: 12px;
-        color: #aaa;
-        background-color: transparent;
-        border: 1px solid #444;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.2s;
-        
-        &:hover {
-          color: #fff;
-          background-color: #333;
-          border-color: #555;
-        }
-      }
-    }
-    
-    .code-block-container {
-      margin: 0;
-      border-radius: 0;
-      background-color: #1e1e1e;
-      
-      code {
-        font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
-        font-size: 14px;
-        line-height: 1.6;
-        color: #d4d4d4;
-      }
-    }
+  .hljs {
+    background-color: #282c34;
+    color: #abb2bf;
   }
   
   blockquote {
@@ -1107,11 +1306,19 @@ onMounted(() => {
   }
   
   strong {
-    font-weight: 600;
+    font-weight: bold;
   }
   
   em {
     font-style: italic;
+  }
+  
+  del {
+    text-decoration: line-through;
+  }
+  
+  u {
+    text-decoration: underline;
   }
 }
 </style>
