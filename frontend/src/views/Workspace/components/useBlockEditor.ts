@@ -131,6 +131,17 @@ export function useBlockEditor(modelValue: Block[]) {
     }
   }
 
+  function getCursorOffsetInElement(element: HTMLElement): number {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return 0
+
+    const range = selection.getRangeAt(0)
+    const preRange = document.createRange()
+    preRange.selectNodeContents(element)
+    preRange.setEnd(range.startContainer, range.startOffset)
+    return preRange.toString().length
+  }
+
   function handleKeyDown(blockId: string, e: KeyboardEvent) {
     const blockIndex = blocks.value.findIndex(b => b.id === blockId)
     if (blockIndex < 0) return
@@ -151,37 +162,42 @@ export function useBlockEditor(modelValue: Block[]) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
 
-      const selection = window.getSelection()
-      if (!selection || selection.rangeCount === 0) return
-
-      const range = selection.getRangeAt(0)
-      const fullText = blocks.value[blockIndex].content || ''
-      const cursorPos = range.startOffset
-
-      const beforeText = fullText.substring(0, cursorPos)
-      const afterText = fullText.substring(cursorPos)
+      const cursorOffset = getCursorOffsetInElement(target)
+      const fullText = target.textContent || ''
+      const beforeText = fullText.substring(0, cursorOffset)
+      const afterText = fullText.substring(cursorOffset)
 
       blocks.value[blockIndex].content = beforeText
+      target.textContent = beforeText
 
       const newBlock = createBlock('text', afterText)
       blocks.value.splice(blockIndex + 1, 0, newBlock)
       activeBlockId.value = newBlock.id
 
-      nextTick(() => {
-        const newEl = document.querySelector(`[data-block-id="${newBlock.id}"]`) as HTMLElement
-        if (newEl) {
-          newEl.focus()
+      setTimeout(() => {
+        const blockElements = document.querySelectorAll('.editable-content')
+        const newBlockEl = blockElements[blockIndex + 1] as HTMLElement
 
-          const newSel = window.getSelection()
-          if (newSel) {
-            const newRange = document.createRange()
-            newRange.setStart(newEl.firstChild || newEl, 0)
-            newRange.collapse(true)
-            newSel.removeAllRanges()
-            newSel.addRange(newRange)
+        if (newBlockEl) {
+          if (afterText) {
+            newBlockEl.textContent = afterText
+          }
+          newBlockEl.focus()
+
+          const selection = window.getSelection()
+          if (selection) {
+            const range = document.createRange()
+            if (newBlockEl.firstChild) {
+              range.setStart(newBlockEl.firstChild, 0)
+            } else {
+              range.setStart(newBlockEl, 0)
+            }
+            range.collapse(true)
+            selection.removeAllRanges()
+            selection.addRange(range)
           }
         }
-      })
+      }, 50)
       return
     }
 
