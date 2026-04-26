@@ -544,6 +544,124 @@ function handleFileUpload(file: any) {
     reader.readAsDataURL(rawFile)
   }
 }
+
+function getActiveBlockIndex(): number {
+  if (!activeBlockId.value) {
+    if (blocks.value.length > 0) {
+      activeBlockId.value = blocks.value[blocks.value.length - 1].id
+      return blocks.value.length - 1
+    }
+    return -1
+  }
+  return blocks.value.findIndex(b => b.id === activeBlockId.value)
+}
+
+function setCurrentBlockType(type: BlockType) {
+  const index = getActiveBlockIndex()
+  if (index < 0) {
+    addFirstBlock()
+    return
+  }
+  
+  if (type === 'divider' || type === 'table' || type === 'code') {
+    const newBlock = createBlock(type)
+    blocks.value.splice(index + 1, 0, newBlock)
+    activeBlockId.value = newBlock.id
+  } else {
+    blocks.value[index].type = type
+  }
+}
+
+function addBlockAfterActive(type: BlockType) {
+  const index = getActiveBlockIndex()
+  const newBlock = createBlock(type)
+  
+  if (index < 0) {
+    blocks.value.push(newBlock)
+  } else {
+    blocks.value.splice(index + 1, 0, newBlock)
+  }
+  
+  activeBlockId.value = newBlock.id
+  
+  nextTick(() => {
+    const elements = document.querySelectorAll('.editable-content')
+    const targetIndex = index < 0 ? 0 : index + 1
+    if (elements[targetIndex]) {
+      (elements[targetIndex] as HTMLElement).focus()
+    }
+  })
+}
+
+function insertTableWithSize(rows: number, cols: number) {
+  const index = getActiveBlockIndex()
+  
+  const tableId = 'table_' + Date.now()
+  
+  const columns = []
+  for (let i = 0; i < cols; i++) {
+    columns.push({
+      id: 'col_' + (i + 1),
+      width: 150,
+      fieldType: 'text',
+      title: `字段${i + 1}`,
+    })
+  }
+  
+  const tableRows = []
+  for (let i = 0; i < rows; i++) {
+    tableRows.push({
+      id: 'row_' + (i + 1),
+      height: 40,
+    })
+  }
+  
+  const cells = []
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      cells.push({
+        rowId: 'row_' + (i + 1),
+        colId: 'col_' + (j + 1),
+        value: '',
+      })
+    }
+  }
+  
+  const tableData: InteractiveTableData = {
+    id: tableId,
+    columns,
+    rows: tableRows,
+    cells,
+    mergeCells: [],
+  }
+  
+  const newBlock = createBlock('table')
+  newBlock.meta = { tableData }
+  
+  if (index < 0) {
+    blocks.value.push(newBlock)
+  } else {
+    blocks.value.splice(index + 1, 0, newBlock)
+  }
+  
+  activeBlockId.value = newBlock.id
+}
+
+function applyInlineStyle(command: string) {
+  try {
+    document.execCommand(command, false)
+  } catch (e) {
+    console.warn('execCommand not supported:', command)
+  }
+}
+
+defineExpose({
+  setCurrentBlockType,
+  addBlockAfterActive,
+  insertTableWithSize,
+  applyInlineStyle,
+  getActiveBlockIndex,
+})
 </script>
 
 <style lang="scss" scoped>
