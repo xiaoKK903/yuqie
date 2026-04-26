@@ -168,24 +168,48 @@ function selectItem(item: MenuItem) {
 }
 
 function handleTableSelect(rows: number, cols: number) {
-  let markdown = '\n'
+  const tableId = 'table_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+  
+  const columns = []
+  for (let i = 0; i < cols; i++) {
+    columns.push({
+      id: 'col_' + (i + 1),
+      width: 150,
+      fieldType: 'text',
+      title: `字段${i + 1}`,
+    })
+  }
+  
+  const tableRows = []
   for (let i = 0; i < rows; i++) {
-    let row = '|'
+    tableRows.push({
+      id: 'row_' + (i + 1),
+      height: 40,
+    })
+  }
+  
+  const cells = []
+  for (let i = 0; i < rows; i++) {
     for (let j = 0; j < cols; j++) {
-      row += ` 列${j + 1} |`
-    }
-    markdown += row + '\n'
-    
-    if (i === 0) {
-      let separator = '|'
-      for (let j = 0; j < cols; j++) {
-        separator += ' --- |'
-      }
-      markdown += separator + '\n'
+      cells.push({
+        rowId: 'row_' + (i + 1),
+        colId: 'col_' + (j + 1),
+        value: '',
+      })
     }
   }
   
-  emit('insert', markdown, 2)
+  const tableData = {
+    id: tableId,
+    columns,
+    rows: tableRows,
+    cells,
+    mergeCells: [],
+  }
+  
+  const markdown = `\n:::table\n${JSON.stringify(tableData, null, 2)}\n:::\n`
+  
+  emit('insert', markdown, 0)
   tableDropdownVisible.value = false
 }
 
