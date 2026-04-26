@@ -149,6 +149,10 @@ const menuStyle = computed(() => {
 
 function highlightItem(key: string) {
   highlightedKey.value = key
+  
+  if (key === 'table') {
+    tableDropdownVisible.value = true
+  }
 }
 
 function selectItem(item: MenuItem) {
