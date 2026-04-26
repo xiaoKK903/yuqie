@@ -6,6 +6,7 @@ import { dirname, join } from 'path'
 import foldersRouter from './routes/folders.js'
 import documentsRouter from './routes/documents.js'
 import treeRouter from './routes/tree.js'
+import versionsRouter from './routes/versions.js'
 import { initDb } from './db/index.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -26,6 +27,7 @@ async function startServer() {
   app.use('/api/folders', foldersRouter)
   app.use('/api/documents', documentsRouter)
   app.use('/api/tree', treeRouter)
+  app.use('/api/versions', versionsRouter)
   
   app.get('/api/health', (req, res) => {
     res.json({

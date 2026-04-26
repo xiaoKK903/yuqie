@@ -68,6 +68,22 @@ async function initDb() {
     )
   `)
   
+  db.run(`
+    CREATE TABLE IF NOT EXISTS document_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      version INTEGER NOT NULL DEFAULT 1,
+      change_summary TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+    )
+  `)
+  
+  db.run(`CREATE INDEX IF NOT EXISTS idx_versions_document_id ON document_versions (document_id)`)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_versions_created_at ON document_versions (created_at)`)
+  
   dbReady = true
   
   saveDb()

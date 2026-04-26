@@ -105,3 +105,15 @@ export interface BlockEditorProps {
   onDeleteBlock?: (blockId: string) => void
   onUpdateBlock?: (blockId: string, updates: Partial<Block>) => void
 }
+
+export interface DocumentVersion {
+  id: number
+  documentId: number
+  content: string
+  title: string
+  version: number
+  createdAt: string
+  changeSummary?: string
+}
+
+export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error'
