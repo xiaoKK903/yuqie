@@ -86,6 +86,7 @@ const {
   slashMenuTargetBlockId,
   uploadDialogVisible,
   uploadType,
+  isSyncingFromProps,
   syncBlockContentToDOM,
   getPlaceholder,
   createBlock,
@@ -113,11 +114,11 @@ const {
 } = useBlockEditor(props.modelValue)
 
 watch(() => props.modelValue, (newVal) => {
-  isSyncingFromProps = true
+  isSyncingFromProps.value = true
   blocks.value = JSON.parse(JSON.stringify(newVal || []))
   syncBlockContentToDOM()
   setTimeout(() => {
-    isSyncingFromProps = false
+    isSyncingFromProps.value = false
   }, 100)
 }, { deep: true })
 
