@@ -745,7 +745,7 @@ function insertTextAtCursor(text: string, selectLength: number = 0) {
   })
 }
 
-function wrapWithTag(beforeTag: string, afterTag: string, defaultText: string) {
+function wrapWithTag(beforeTag: string, afterTag: string) {
   saveCursorPosition()
   
   const start = cursorStart.value
@@ -756,37 +756,50 @@ function wrapWithTag(beforeTag: string, afterTag: string, defaultText: string) {
   const selected = currentText.substring(start, end)
   const after = currentText.substring(end)
   
-  const text = selected || defaultText
-  editContent.value = before + beforeTag + text + afterTag + after
-  
-  const newStart = start + beforeTag.length
-  const newEnd = start + beforeTag.length + text.length
-  
-  nextTick(() => {
-    if (editorRef.value) {
-      editorRef.value.focus()
-      editorRef.value.selectionStart = newStart
-      editorRef.value.selectionEnd = newEnd
-      cursorStart.value = newStart
-      cursorEnd.value = newEnd
-    }
-  })
+  if (selected) {
+    editContent.value = before + beforeTag + selected + afterTag + after
+    const newStart = start + beforeTag.length
+    const newEnd = start + beforeTag.length + selected.length
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = newStart
+        editorRef.value.selectionEnd = newEnd
+        cursorStart.value = newStart
+        cursorEnd.value = newEnd
+      }
+    })
+  } else {
+    editContent.value = before + beforeTag + afterTag + after
+    const newCursorPos = start + beforeTag.length
+    
+    nextTick(() => {
+      if (editorRef.value) {
+        editorRef.value.focus()
+        editorRef.value.selectionStart = newCursorPos
+        editorRef.value.selectionEnd = newCursorPos
+        cursorStart.value = newCursorPos
+        cursorEnd.value = newCursorPos
+      }
+    })
+  }
 }
 
 function handleBold() {
-  wrapWithTag('**', '**', '粗体文字')
+  wrapWithTag('**', '**')
 }
 
 function handleItalic() {
-  wrapWithTag('*', '*', '斜体文字')
+  wrapWithTag('*', '*')
 }
 
 function handleStrikethrough() {
-  wrapWithTag('~~', '~~', '删除线文字')
+  wrapWithTag('~~', '~~')
 }
 
 function handleUnderline() {
-  wrapWithTag('<u>', '</u>', '下划线文字')
+  wrapWithTag('<u>', '</u>')
 }
 
 function handleFontFamilyChange() {
@@ -806,29 +819,28 @@ function handleFontSizeChange() {
 }
 
 function insertHeading(level: number) {
-  const prefix = '#'.repeat(level) + ' '
-  const text = prefix + '标题'
-  insertTextAtCursor(text, prefix.length)
+  const text = '#'.repeat(level) + ' '
+  insertTextAtCursor(text, text.length)
 }
 
 function insertList() {
-  const text = '\n- 列表项1\n- 列表项2\n- 列表项3'
+  const text = '\n- '
   insertTextAtCursor(text, text.length)
 }
 
 function insertOrderedList() {
-  const text = '\n1. 列表项1\n2. 列表项2\n3. 列表项3'
+  const text = '\n1. '
   insertTextAtCursor(text, text.length)
 }
 
 function insertQuote() {
-  const text = '\n> 引用内容'
+  const text = '\n> '
   insertTextAtCursor(text, text.length)
 }
 
 function insertCodeBlock() {
-  const text = '\n```javascript\n// 在此输入代码\nconst hello = "world";\nconsole.log(hello);\n```\n'
-  insertTextAtCursor(text, text.length)
+  const text = '\n```javascript\n\n```\n'
+  insertTextAtCursor(text, text.length - 5)
 }
 
 async function insertLink() {
@@ -851,23 +863,38 @@ async function insertLink() {
     const selected = currentText.substring(start, end)
     const after = currentText.substring(end)
     
-    const linkText = selected || '链接文字'
-    const link = `[${linkText}](${url})`
-    
-    editContent.value = before + link + after
-    
-    const newStart = start + 1
-    const newEnd = start + 1 + linkText.length
-    
-    nextTick(() => {
-      if (editorRef.value) {
-        editorRef.value.focus()
-        editorRef.value.selectionStart = newStart
-        editorRef.value.selectionEnd = newEnd
-        cursorStart.value = newStart
-        cursorEnd.value = newEnd
-      }
-    })
+    if (selected) {
+      const link = `[${selected}](${url})`
+      editContent.value = before + link + after
+      
+      const newStart = start + 1
+      const newEnd = start + 1 + selected.length
+      
+      nextTick(() => {
+        if (editorRef.value) {
+          editorRef.value.focus()
+          editorRef.value.selectionStart = newStart
+          editorRef.value.selectionEnd = newEnd
+          cursorStart.value = newStart
+          cursorEnd.value = newEnd
+        }
+      })
+    } else {
+      const link = `[](${url})`
+      editContent.value = before + link + after
+      
+      const newCursorPos = start + 1
+      
+      nextTick(() => {
+        if (editorRef.value) {
+          editorRef.value.focus()
+          editorRef.value.selectionStart = newCursorPos
+          editorRef.value.selectionEnd = newCursorPos
+          cursorStart.value = newCursorPos
+          cursorEnd.value = newCursorPos
+        }
+      })
+    }
   } catch {
     // 用户取消
   }
