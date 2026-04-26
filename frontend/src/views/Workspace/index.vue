@@ -1014,14 +1014,13 @@ function handleSlashMenuUpload(type: 'image' | 'attachment') {
   hideSlashMenu()
 }
 
-function handleFileUpload(e: Event) {
-  const target = e.target as HTMLInputElement
-  const files = target.files
+function handleFileUpload(file: any) {
+  if (!file || !file.raw) return
   
-  if (!files || files.length === 0) return
+  const rawFile = file.raw as File
+  const fileName = rawFile.name
   
-  const file = files[0]
-  const fileName = file.name
+  const insertPos = slashStartPos.value
   
   if (uploadType.value === 'image') {
     const reader = new FileReader()
@@ -1029,27 +1028,25 @@ function handleFileUpload(e: Event) {
       const base64 = reader.result as string
       const markdown = `![${fileName}](${base64})`
       
-      const start = slashStartPos.value
-      const beforeText = editContent.value.substring(0, start)
-      const afterText = editContent.value.substring(start)
+      const beforeText = editContent.value.substring(0, insertPos)
+      const afterText = editContent.value.substring(insertPos)
       
       editContent.value = beforeText + markdown + afterText
       
-      ElMessage.success('图片已添加')
       uploadDialogVisible.value = false
+      ElMessage.success('图片已添加')
     }
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(rawFile)
   } else {
     const markdown = `[${fileName}](./uploads/${fileName})`
     
-    const start = slashStartPos.value
-    const beforeText = editContent.value.substring(0, start)
-    const afterText = editContent.value.substring(start)
+    const beforeText = editContent.value.substring(0, insertPos)
+    const afterText = editContent.value.substring(insertPos)
     
     editContent.value = beforeText + markdown + afterText
     
-    ElMessage.success('附件已添加')
     uploadDialogVisible.value = false
+    ElMessage.success('附件已添加')
   }
 }
 

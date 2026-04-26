@@ -45,15 +45,19 @@
               class="menu-item"
               :class="{ active: highlightedKey === item.key }"
               @mouseenter="highlightItem(item.key)"
-              @click="selectItem(item)"
+              @click.stop="selectItem(item)"
             >
               <span class="item-icon large">{{ item.icon }}</span>
               <span class="item-label">{{ item.label }}</span>
+              <span class="item-arrow" v-if="item.key === 'table'">
+                <el-icon><ArrowRight /></el-icon>
+              </span>
               
               <div
                 v-if="item.key === 'table'"
                 class="table-dropdown"
                 v-show="tableDropdownVisible"
+                @click.stop
               >
                 <TableSelector @select="handleTableSelect" />
               </div>
@@ -67,6 +71,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ArrowRight } from '@element-plus/icons-vue'
 import TableSelector from './TableSelector.vue'
 
 interface MenuItem {
@@ -352,6 +357,12 @@ onMounted(() => {
     background: #f4f4f5;
     padding: 2px 6px;
     border-radius: 4px;
+  }
+  
+  .item-arrow {
+    margin-left: 8px;
+    color: #909399;
+    font-size: 12px;
   }
   
   .table-dropdown {
