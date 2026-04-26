@@ -133,6 +133,7 @@
                 text 
                 @click="handleBold"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isBoldActive }"
               >
                 <strong>B</strong>
               </el-button>
@@ -142,6 +143,7 @@
                 text 
                 @click="handleItalic"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isItalicActive }"
               >
                 <em>I</em>
               </el-button>
@@ -151,6 +153,7 @@
                 text 
                 @click="handleStrikethrough"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isStrikethroughActive }"
               >
                 <span style="text-decoration: line-through;">S</span>
               </el-button>
@@ -160,6 +163,7 @@
                 text 
                 @click="handleUnderline"
                 class="toolbar-btn format-btn"
+                :class="{ 'format-btn-active': isUnderlineActive }"
               >
                 <span style="text-decoration: underline;">U</span>
               </el-button>
@@ -223,8 +227,14 @@
         </div>
         
         <div class="doc-content">
-          <div class="editor-pane">
+          <div class="editor-pane wysiwyg-editor" :style="editorStyle">
+            <BlockEditor
+              ref="blockEditorRef"
+              v-model="editorBlocks"
+              v-if="useBlockEditor"
+            />
             <textarea
+              v-else
               ref="editorRef"
               v-model="editContent"
               class="markdown-editor"
@@ -235,22 +245,6 @@
               @click="saveCursorPosition"
               @blur="saveCursorPosition"
             />
-          </div>
-          <div class="preview-pane">
-            <div class="markdown-body" :style="previewStyle">
-              <template v-for="(fragment, index) in contentFragments" :key="index">
-                <template v-if="fragment.type === 'text'">
-                  <div v-html="md.render(fragment.content)"></div>
-                </template>
-                <template v-else-if="fragment.type === 'table' && fragment.tableData">
-                  <InteractiveTable
-                    :modelValue="fragment.tableData"
-                    @update:modelValue="(data: InteractiveTableData) => updateTableData(fragment, data)"
-                    @delete="() => deleteTable(fragment)"
-                  />
-                </template>
-              </template>
-            </div>
           </div>
         </div>
       </template>
@@ -311,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -333,11 +327,12 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { useKnowledgeStore } from '@/store/knowledge'
 import { folderApi, documentApi, treeApi } from '@/api'
-import type { TreeNode as TreeNodeType, InteractiveTableData } from '@/types'
+import type { TreeNode as TreeNodeType, InteractiveTableData, Block, BlockType } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import SlashMenu from './components/SlashMenu.vue'
 import InteractiveTable from './components/InteractiveTable.vue'
+import BlockEditor from './components/BlockEditor.vue'
 
 interface HistoryItem {
   content: string
@@ -366,6 +361,7 @@ const { treeData, currentDocument, loading, activeNode } = storeToRefs(store)
 const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode } = store
 
 const editorRef = ref<HTMLTextAreaElement | null>(null)
+const blockEditorRef = ref<InstanceType<typeof BlockEditor> | null>(null)
 const searchKeyword = ref('')
 const editTitle = ref('')
 const editContent = ref('')
@@ -375,6 +371,15 @@ const cursorEnd = ref(0)
 
 const fontFamily = ref('default')
 const fontSize = ref(14)
+
+const useBlockEditor = ref(true)
+const editorBlocks = ref<Block[]>([])
+const isSyncing = ref(false)
+
+const isBoldActive = ref(false)
+const isItalicActive = ref(false)
+const isStrikethroughActive = ref(false)
+const isUnderlineActive = ref(false)
 
 const historyStack = ref<HistoryItem[]>([])
 const historyIndex = ref(-1)
@@ -481,6 +486,191 @@ function parseContentFragments(content: string): ContentFragment[] {
   }
   
   return fragments
+}
+
+function generateBlockId(): string {
+  return 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+}
+
+function createBlock(type: BlockType, content: string = '', meta?: Block['meta']): Block {
+  return {
+    id: generateBlockId(),
+    type,
+    content,
+    meta,
+  }
+}
+
+function createDefaultTable(): InteractiveTableData {
+  const cols = 3
+  const rows = 3
+  
+  const columns = []
+  for (let i = 0; i < cols; i++) {
+    columns.push({
+      id: 'col_' + (i + 1),
+      width: 150,
+      fieldType: 'text',
+      title: `字段${i + 1}`,
+    })
+  }
+  
+  const tableRows = []
+  for (let i = 0; i < rows; i++) {
+    tableRows.push({
+      id: 'row_' + (i + 1),
+      height: 40,
+    })
+  }
+  
+  const cells = []
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      cells.push({
+        rowId: 'row_' + (i + 1),
+        colId: 'col_' + (j + 1),
+        value: '',
+      })
+    }
+  }
+  
+  return {
+    id: 'table_' + Date.now(),
+    columns,
+    rows: tableRows,
+    cells,
+    mergeCells: [],
+  }
+}
+
+function markdownToBlocks(markdown: string): Block[] {
+  const blocks: Block[] = []
+  
+  if (!markdown || !markdown.trim()) {
+    return [createBlock('text')]
+  }
+  
+  const fragments = parseContentFragments(markdown)
+  
+  for (const fragment of fragments) {
+    if (fragment.type === 'table') {
+      blocks.push(createBlock('table', '', { tableData: fragment.tableData }))
+    } else {
+      const lines = fragment.content.split('\n')
+      
+      for (const line of lines) {
+        let block: Block | null = null
+        
+        if (line.startsWith('# ')) {
+          block = createBlock('h1', line.substring(2))
+        } else if (line.startsWith('## ')) {
+          block = createBlock('h2', line.substring(3))
+        } else if (line.startsWith('### ')) {
+          block = createBlock('h3', line.substring(4))
+        } else if (line.startsWith('#### ')) {
+          block = createBlock('h4', line.substring(5))
+        } else if (line.startsWith('##### ')) {
+          block = createBlock('h5', line.substring(6))
+        } else if (line.startsWith('###### ')) {
+          block = createBlock('h6', line.substring(7))
+        } else if (line.startsWith('- [ ] ')) {
+          block = createBlock('todo', line.substring(6), { checked: false })
+        } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
+          block = createBlock('todo', line.substring(6), { checked: true })
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+          block = createBlock('bullet', line.substring(2))
+        } else if (/^\d+\.\s/.test(line)) {
+          const match = line.match(/^\d+\.\s(.*)$/)
+          if (match) {
+            block = createBlock('numbered', match[1])
+          }
+        } else if (line.startsWith('> ')) {
+          block = createBlock('quote', line.substring(2))
+        } else if (line.startsWith('```')) {
+          const lang = line.substring(3) || 'plaintext'
+          block = createBlock('code', '', { language: lang })
+        } else if (line.startsWith('---') || line.startsWith('***') || line.startsWith('___')) {
+          block = createBlock('divider')
+        } else if (line.trim()) {
+          block = createBlock('text', line)
+        } else if (blocks.length > 0 && blocks[blocks.length - 1].type === 'code') {
+          blocks[blocks.length - 1].content += (blocks[blocks.length - 1].content ? '\n' : '') + line
+          continue
+        }
+        
+        if (block) {
+          blocks.push(block)
+        }
+      }
+    }
+  }
+  
+  if (blocks.length === 0) {
+    blocks.push(createBlock('text'))
+  }
+  
+  return blocks
+}
+
+function blocksToMarkdown(blocks: Block[]): string {
+  const lines: string[] = []
+  
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'text':
+        lines.push(block.content || '')
+        break
+      case 'h1':
+        lines.push(`# ${block.content || ''}`)
+        break
+      case 'h2':
+        lines.push(`## ${block.content || ''}`)
+        break
+      case 'h3':
+        lines.push(`### ${block.content || ''}`)
+        break
+      case 'h4':
+        lines.push(`#### ${block.content || ''}`)
+        break
+      case 'h5':
+        lines.push(`##### ${block.content || ''}`)
+        break
+      case 'h6':
+        lines.push(`###### ${block.content || ''}`)
+        break
+      case 'bullet':
+        lines.push(`- ${block.content || ''}`)
+        break
+      case 'numbered':
+        lines.push(`1. ${block.content || ''}`)
+        break
+      case 'todo':
+        const check = block.meta?.checked ? '[x]' : '[ ]'
+        lines.push(`- ${check} ${block.content || ''}`)
+        break
+      case 'quote':
+        lines.push(`> ${block.content || ''}`)
+        break
+      case 'code':
+        const lang = block.meta?.language || 'plaintext'
+        lines.push(`\`\`\`${lang}`)
+        lines.push(block.content || '')
+        lines.push('```')
+        break
+      case 'divider':
+        lines.push('---')
+        break
+      case 'table':
+        if (block.meta?.tableData) {
+          lines.push(':::table')
+          lines.push(JSON.stringify(block.meta.tableData, null, 2))
+          lines.push(':::')
+        }
+        break
+    }
+  }
+  
+  return lines.join('\n')
 }
 
 const contentFragments = computed(() => {
@@ -953,19 +1143,35 @@ function wrapWithTag(beforeTag: string, afterTag: string) {
 }
 
 function handleBold() {
-  wrapWithTag('**', '**')
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.applyInlineStyle('bold')
+  } else {
+    wrapWithTag('**', '**')
+  }
 }
 
 function handleItalic() {
-  wrapWithTag('*', '*')
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.applyInlineStyle('italic')
+  } else {
+    wrapWithTag('*', '*')
+  }
 }
 
 function handleStrikethrough() {
-  wrapWithTag('~~', '~~')
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.applyInlineStyle('strikeThrough')
+  } else {
+    wrapWithTag('~~', '~~')
+  }
 }
 
 function handleUnderline() {
-  wrapWithTag('<u>', '</u>')
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.applyInlineStyle('underline')
+  } else {
+    wrapWithTag('<u>', '</u>')
+  }
 }
 
 function handleFontFamilyChange() {
@@ -985,28 +1191,49 @@ function handleFontSizeChange() {
 }
 
 function insertHeading(level: number) {
-  const text = '#'.repeat(level) + ' '
-  insertTextAtCursor(text, text.length)
+  if (useBlockEditor.value && blockEditorRef.value) {
+    const headingType = `h${level}` as BlockType
+    blockEditorRef.value.setCurrentBlockType(headingType)
+  } else {
+    const text = '#'.repeat(level) + ' '
+    insertTextAtCursor(text, text.length)
+  }
 }
 
 function insertList() {
-  const text = '\n- '
-  insertTextAtCursor(text, text.length)
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.setCurrentBlockType('bullet')
+  } else {
+    const text = '\n- '
+    insertTextAtCursor(text, text.length)
+  }
 }
 
 function insertOrderedList() {
-  const text = '\n1. '
-  insertTextAtCursor(text, text.length)
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.setCurrentBlockType('numbered')
+  } else {
+    const text = '\n1. '
+    insertTextAtCursor(text, text.length)
+  }
 }
 
 function insertQuote() {
-  const text = '\n> '
-  insertTextAtCursor(text, text.length)
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.setCurrentBlockType('quote')
+  } else {
+    const text = '\n> '
+    insertTextAtCursor(text, text.length)
+  }
 }
 
 function insertCodeBlock() {
-  const text = '\n```javascript\n\n```\n'
-  insertTextAtCursor(text, text.length - 5)
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.setCurrentBlockType('code')
+  } else {
+    const text = '\n```javascript\n\n```\n'
+    insertTextAtCursor(text, text.length - 5)
+  }
 }
 
 async function insertLink() {
@@ -1067,8 +1294,12 @@ async function insertLink() {
 }
 
 function insertHR() {
-  const text = '\n---\n'
-  insertTextAtCursor(text, text.length)
+  if (useBlockEditor.value && blockEditorRef.value) {
+    blockEditorRef.value.setCurrentBlockType('divider')
+  } else {
+    const text = '\n---\n'
+    insertTextAtCursor(text, text.length)
+  }
 }
 
 function getCursorPosition() {
@@ -1290,8 +1521,13 @@ function handleKeyDown(e: KeyboardEvent) {
 
 watch(currentDocument, (doc) => {
   if (doc) {
+    isSyncing.value = true
     editContent.value = doc.content
     console.log('[文档切换] 加载内容:', JSON.stringify(doc.content?.substring(0, 100)))
+    
+    if (useBlockEditor.value) {
+      editorBlocks.value = markdownToBlocks(doc.content || '')
+    }
     
     historyStack.value = [{
       content: doc.content || '',
@@ -1299,11 +1535,54 @@ watch(currentDocument, (doc) => {
       cursorEnd: 0,
     }]
     historyIndex.value = 0
+    
+    nextTick(() => {
+      isSyncing.value = false
+    })
   }
 })
 
+watch(editorBlocks, (newBlocks) => {
+  if (isSyncing.value) return
+  
+  if (useBlockEditor.value && newBlocks.length > 0) {
+    const markdown = blocksToMarkdown(newBlocks)
+    if (markdown !== editContent.value) {
+      isSyncing.value = true
+      editContent.value = markdown
+      handleContentChange()
+      nextTick(() => {
+        isSyncing.value = false
+      })
+    }
+  }
+}, { deep: true })
+
+function updateFormatState() {
+  if (!useBlockEditor.value) return
+  
+  try {
+    isBoldActive.value = document.queryCommandState('bold')
+    isItalicActive.value = document.queryCommandState('italic')
+    isStrikethroughActive.value = document.queryCommandState('strikeThrough')
+    isUnderlineActive.value = document.queryCommandState('underline')
+  } catch (e) {
+    console.warn('queryCommandState not supported:', e)
+  }
+}
+
 onMounted(() => {
   fetchTree()
+  
+  document.addEventListener('mouseup', updateFormatState)
+  document.addEventListener('keyup', updateFormatState)
+  document.addEventListener('selectionchange', updateFormatState)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mouseup', updateFormatState)
+  document.removeEventListener('keyup', updateFormatState)
+  document.removeEventListener('selectionchange', updateFormatState)
 })
 </script>
 
@@ -1444,6 +1723,11 @@ onMounted(() => {
   }
 }
 
+.format-btn-active {
+  background-color: #ecf5ff !important;
+  color: #409eff !important;
+}
+
 .doc-content {
   flex: 1;
   display: flex;
@@ -1460,6 +1744,12 @@ onMounted(() => {
 .editor-pane {
   border-right: 1px solid #e4e7ed;
   background-color: #fafafa;
+}
+
+.editor-pane.wysiwyg-editor {
+  border-right: none;
+  background-color: #fff;
+  padding: 24px 32px;
 }
 
 .markdown-editor {
