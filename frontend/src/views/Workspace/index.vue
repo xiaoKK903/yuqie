@@ -246,6 +246,10 @@
               @blur="saveCursorPosition"
             />
           </div>
+          <OutlinePanel
+            v-if="useBlockEditor"
+            :blocks="editorBlocks"
+          />
         </div>
       </template>
       <div v-else class="empty-content">
@@ -333,6 +337,7 @@ import ContextMenu from './components/ContextMenu.vue'
 import SlashMenu from './components/SlashMenu.vue'
 import InteractiveTable from './components/InteractiveTable.vue'
 import BlockEditor from './components/BlockEditor.vue'
+import OutlinePanel from './components/OutlinePanel.vue'
 
 interface HistoryItem {
   content: string
