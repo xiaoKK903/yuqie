@@ -17,6 +17,10 @@
               <el-icon><Grid /></el-icon>
               新建表格
             </el-dropdown-item>
+            <el-dropdown-item command="canvas">
+              <span class="canvas-icon">🎨</span>
+              新建画板
+            </el-dropdown-item>
             <el-dropdown-item command="km">
               <el-icon><FolderOpened /></el-icon>
               新建知识库
@@ -125,7 +129,7 @@
           :loading="creating"
           :disabled="!selectedKmId"
         >
-          创建{{ newType === 'document' ? '文档' : '表格' }}
+          创建{{ newType === 'document' ? '文档' : newType === 'table' ? '表格' : '画板' }}
         </el-button>
       </template>
     </el-dialog>
@@ -146,7 +150,7 @@ import {
   Check
 } from '@element-plus/icons-vue'
 import { kmApi, documentApi } from '@/api'
-import type { Km, InteractiveTableData } from '@/types'
+import type { Km, InteractiveTableData, InteractiveCanvasData } from '@/types'
 
 const router = useRouter()
 
@@ -161,7 +165,7 @@ const createKmForm = ref({
 
 const showSelectKmDialog = ref(false)
 const selectedKmId = ref<number | null>(null)
-const newType = ref<'document' | 'table'>('document')
+const newType = ref<'document' | 'table' | 'canvas'>('document')
 
 function createDefaultTableData(): InteractiveTableData {
   const cols = 3
@@ -212,6 +216,23 @@ ${JSON.stringify(tableData, null, 2)}
 :::`
 }
 
+function createDefaultCanvasData(): InteractiveCanvasData {
+  return {
+    id: `canvas_${Date.now()}`,
+    width: 1200,
+    height: 800,
+    elements: [],
+    backgroundColor: '#ffffff'
+  }
+}
+
+function createCanvasContent(): string {
+  const canvasData = createDefaultCanvasData()
+  return `:::canvas
+${JSON.stringify(canvasData, null, 2)}
+:::`
+}
+
 async function loadKms() {
   loading.value = true
   try {
@@ -230,7 +251,7 @@ function handleNewCommand(command: string) {
     createKmForm.value.name = ''
     showCreateKmDialog.value = true
   } else {
-    newType.value = command as 'document' | 'table'
+    newType.value = command as 'document' | 'table' | 'canvas'
     selectedKmId.value = kms.value.length === 1 ? kms.value[0].id : null
     showSelectKmDialog.value = true
   }
@@ -263,11 +284,16 @@ async function handleCreateDocument() {
     return
   }
   
-  const title = newType.value === 'document' 
-    ? '未命名文档'
-    : '未命名表格'
+  let title = '未命名文档'
+  let content = ''
   
-  const content = newType.value === 'table' ? createTableContent() : ''
+  if (newType.value === 'table') {
+    title = '未命名表格'
+    content = createTableContent()
+  } else if (newType.value === 'canvas') {
+    title = '未命名画板'
+    content = createCanvasContent()
+  }
   
   creating.value = true
   try {
@@ -278,7 +304,9 @@ async function handleCreateDocument() {
       content,
     })
     
-    ElMessage.success(`${newType.value === 'document' ? '文档' : '表格'}创建成功`)
+    const typeLabel = newType.value === 'document' ? '文档' : 
+                     newType.value === 'table' ? '表格' : '画板'
+    ElMessage.success(`${typeLabel}创建成功`)
     showSelectKmDialog.value = false
     
     router.push(`/workspace?kmId=${selectedKmId.value}&docId=${res.data.data.id}&newDoc=1`)
