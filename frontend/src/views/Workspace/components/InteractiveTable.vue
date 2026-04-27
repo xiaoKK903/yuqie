@@ -68,7 +68,7 @@
           @click="handleSplitCell"
           :disabled="!canSplitCell"
         >
-          <el-icon><CopyDocument /></el-icon>
+          <el-icon><Grid /></el-icon>
           <span>拆分单元格</span>
         </el-button>
 
@@ -81,7 +81,7 @@
             :class="{ 'is-active': formatState.bold }"
             @click="toggleFormat('bold')"
           >
-            <el-icon><Bold /></el-icon>
+            <span class="format-text">B</span>
           </el-button>
           <el-button
             text
@@ -89,7 +89,7 @@
             :class="{ 'is-active': formatState.italic }"
             @click="toggleFormat('italic')"
           >
-            <el-icon><Italic /></el-icon>
+            <span class="format-text">I</span>
           </el-button>
           <el-button
             text
@@ -97,7 +97,7 @@
             :class="{ 'is-active': formatState.underline }"
             @click="toggleFormat('underline')"
           >
-            <el-icon><Underline /></el-icon>
+            <span class="format-text">U</span>
           </el-button>
         </div>
 
@@ -131,13 +131,13 @@
         <div class="align-group">
           <el-radio-group v-model="formatState.align" size="small" @change="handleAlign">
             <el-radio-button value="left">
-              <el-icon><ArrowLeft /></el-icon>
+              <span class="align-text">左</span>
             </el-radio-button>
             <el-radio-button value="center">
-              <el-icon><Minus /></el-icon>
+              <span class="align-text">中</span>
             </el-radio-button>
             <el-radio-button value="right">
-              <el-icon><ArrowRight /></el-icon>
+              <span class="align-text">右</span>
             </el-radio-button>
           </el-radio-group>
         </div>
@@ -175,7 +175,7 @@
             :class="{ 'is-active': formatBrushActive }"
             @click="toggleFormatBrush"
           >
-            <el-icon><Brush /></el-icon>
+            <el-icon><Plus /></el-icon>
             <span>格式刷</span>
           </el-button>
 
@@ -193,7 +193,7 @@
             class="toolbar-btn"
             @click="fitColumnWidth"
           >
-            <el-icon><FullScreen /></el-icon>
+            <el-icon><Grid /></el-icon>
             <span>自动列宽</span>
           </el-button>
         </div>
@@ -385,18 +385,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
   Delete,
-  Close,
   Grid,
   ArrowDown,
-  ArrowLeft,
   ArrowRight,
-  Bold,
-  Italic,
-  Underline,
-  Brush,
-  FullScreen,
-  CopyDocument,
-  Minus,
 } from '@element-plus/icons-vue'
 import type { InteractiveTableData, TableFieldType, CellFormat, HorizontalAlign, BorderStyle } from '@/types'
 
