@@ -11,7 +11,7 @@
           <span>添加列</span>
         </el-button>
       </div>
-      
+
       <div class="toolbar-right">
         <el-button text class="toolbar-btn" @click="handleDeleteTable">
           <el-icon><Delete /></el-icon>
@@ -19,7 +19,7 @@
         </el-button>
       </div>
     </div>
-    
+
     <div class="table-container">
       <div class="table-scroll-horizontal" ref="scrollContainerRef">
         <table class="interactive-table" :style="{ width: tableWidth + 'px' }">
@@ -29,7 +29,7 @@
                 <el-checkbox v-model="selectAll" @change="handleSelectAll" />
               </th>
               <th
-                v-for="(col, colIndex) in tableData.columns"
+                v-for="(col, colIndex) in currentColumns"
                 :key="col.id"
                 class="table-header-cell"
                 :style="{ width: col.width + 'px' }"
@@ -48,7 +48,7 @@
                   </span>
                   <span class="field-type-badge">{{ getFieldTypeLabel(col.fieldType) }}</span>
                 </div>
-                <div 
+                <div
                   class="column-resize-handle"
                   @mousedown="startResizeColumn(colIndex, $event)"
                 />
@@ -57,7 +57,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="(row, rowIndex) in tableData.rows"
+              v-for="(row, rowIndex) in currentRows"
               :key="row.id"
               class="table-row"
               :class="{ 'row-selected': selectedRowIndices.includes(rowIndex) }"
@@ -67,7 +67,7 @@
                 <span class="row-number">{{ rowIndex + 1 }}</span>
               </td>
               <td
-                v-for="(col, colIndex) in tableData.columns"
+                v-for="(col, colIndex) in currentColumns"
                 :key="col.id"
                 class="table-cell"
                 :class="{ 'cell-editing': editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex }"
@@ -129,11 +129,11 @@
         </table>
       </div>
     </div>
-    
+
     <div class="sheet-tabs-bar">
       <div class="sheet-tabs-scroll">
         <div
-          v-for="sheet in sheets"
+          v-for="sheet in sheetList"
           :key="sheet.id"
           class="sheet-tab"
           :class="{ 'is-active': sheet.id === activeSheetId }"
@@ -155,7 +155,7 @@
             <span class="sheet-name">{{ sheet.name }}</span>
           </template>
           <el-icon
-            v-if="sheets.length > 1 && editingSheetId !== sheet.id"
+            v-if="sheetList.length > 1 && editingSheetId !== sheet.id"
             class="sheet-close"
             @click.stop="deleteSheet(sheet.id)"
           >
@@ -167,15 +167,15 @@
         <el-icon><Plus /></el-icon>
       </div>
     </div>
-    
+
     <div class="table-footer">
-      <span>{{ selectedRowIndices.length > 0 ? selectedRowIndices.length : tableData.rows.length }} 条记录</span>
+      <span>{{ selectedRowIndices.length > 0 ? selectedRowIndices.length : currentRows.length }} 条记录</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
@@ -197,6 +197,7 @@ const wrapperRef = ref<HTMLElement | null>(null)
 const scrollContainerRef = ref<HTMLElement | null>(null)
 
 const tableData = ref<InteractiveTableData>(JSON.parse(JSON.stringify(props.modelValue)))
+const initialized = ref(false)
 
 const selectAll = ref(false)
 const selectedRowIndices = ref<number[]>([])
@@ -213,13 +214,25 @@ const resizingColumn = ref<{ colIndex: number; startX: number; startWidth: numbe
 const editingSheetId = ref<string | null>(null)
 const renamingSheetName = ref('')
 
-const isEmitting = ref(false)
-
-const sheets = computed(() => tableData.value.sheets || [])
+const sheetList = computed(() => tableData.value.sheets || [])
 const activeSheetId = computed(() => tableData.value.activeSheetId || '')
 
+const currentSheet = computed(() => {
+  const sheets = tableData.value.sheets
+  const activeId = tableData.value.activeSheetId
+  if (!sheets || !activeId) {
+    return null
+  }
+  return sheets.find(s => s.id === activeId) || null
+})
+
+const currentColumns = computed(() => currentSheet.value?.columns || [])
+const currentRows = computed(() => currentSheet.value?.rows || [])
+const currentCells = computed(() => currentSheet.value?.cells || [])
+const currentMergeCells = computed(() => currentSheet.value?.mergeCells || [])
+
 const tableWidth = computed(() => {
-  return tableData.value.columns.reduce((sum, col) => sum + col.width, 0) + 50
+  return currentColumns.value.reduce((sum, col) => sum + col.width, 0) + 50
 })
 
 function ensureSheets() {
@@ -237,49 +250,63 @@ function ensureSheets() {
   }
 }
 
-function saveCurrentSheetToSheets() {
-  if (!tableData.value.sheets || !tableData.value.activeSheetId) return
-  
-  const sheetIndex = tableData.value.sheets.findIndex(s => s.id === tableData.value.activeSheetId)
-  if (sheetIndex >= 0) {
-    tableData.value.sheets[sheetIndex].columns = JSON.parse(JSON.stringify(tableData.value.columns))
-    tableData.value.sheets[sheetIndex].rows = JSON.parse(JSON.stringify(tableData.value.rows))
-    tableData.value.sheets[sheetIndex].cells = JSON.parse(JSON.stringify(tableData.value.cells))
-    tableData.value.sheets[sheetIndex].mergeCells = JSON.parse(JSON.stringify(tableData.value.mergeCells || []))
-  }
+function getCellValue(rowIndex: number, colIndex: number): string {
+  const row = currentRows.value[rowIndex]
+  const col = currentColumns.value[colIndex]
+
+  if (!row || !col) return ''
+
+  const cell = currentCells.value.find(c => c.rowId === row.id && c.colId === col.id)
+  return cell?.value || ''
 }
 
-function loadSheetFromSheets(sheetId: string) {
-  if (!tableData.value.sheets) return
-  
-  const sheet = tableData.value.sheets.find(s => s.id === sheetId)
-  if (sheet) {
-    tableData.value.columns = JSON.parse(JSON.stringify(sheet.columns))
-    tableData.value.rows = JSON.parse(JSON.stringify(sheet.rows))
-    tableData.value.cells = JSON.parse(JSON.stringify(sheet.cells))
-    tableData.value.mergeCells = JSON.parse(JSON.stringify(sheet.mergeCells || []))
-    tableData.value.activeSheetId = sheetId
+function setCellValue(rowIndex: number, colIndex: number, value: string) {
+  const row = currentRows.value[rowIndex]
+  const col = currentColumns.value[colIndex]
+
+  if (!row || !col) return
+
+  const sheet = currentSheet.value
+  if (!sheet) return
+
+  const cellIndex = sheet.cells.findIndex(c => c.rowId === row.id && c.colId === col.id)
+
+  if (cellIndex >= 0) {
+    sheet.cells[cellIndex].value = value
+  } else {
+    sheet.cells.push({ rowId: row.id, colId: col.id, value })
   }
+
+  emitData()
+}
+
+function getFieldTypeLabel(type: TableFieldType): string {
+  const labels: Record<TableFieldType, string> = {
+    text: '文本',
+    select: '单选',
+    date: '日期',
+    checkbox: '复选框',
+  }
+  return labels[type] || type
 }
 
 function switchSheet(sheetId: string) {
-  if (sheetId === tableData.value.activeSheetId) return
+  if (sheetId === activeSheetId.value) return
   if (editingSheetId.value) return
-  
-  saveCurrentSheetToSheets()
-  loadSheetFromSheets(sheetId)
-  
+
+  tableData.value.activeSheetId = sheetId
+
   selectAll.value = false
   selectedRowIndices.value = []
   editingCell.value = null
   editingValue.value = ''
-  
+
   emitData()
 }
 
 function addSheet() {
   ensureSheets()
-  
+
   const sheetIndex = tableData.value.sheets!.length
   const newSheet: TableSheet = {
     id: 'sheet_' + Date.now(),
@@ -307,41 +334,38 @@ function addSheet() {
     ],
     mergeCells: [],
   }
-  
-  saveCurrentSheetToSheets()
+
   tableData.value.sheets!.push(newSheet)
-  loadSheetFromSheets(newSheet.id)
-  
+  tableData.value.activeSheetId = newSheet.id
+
   selectAll.value = false
   selectedRowIndices.value = []
   editingCell.value = null
-  
+
   emitData()
   ElMessage.success('已添加新工作表')
 }
 
 function startRenameSheet(sheetId: string) {
-  if (tableData.value.sheets) {
-    const sheet = tableData.value.sheets.find(s => s.id === sheetId)
-    if (sheet) {
-      editingSheetId.value = sheetId
-      renamingSheetName.value = sheet.name
-    }
+  const sheet = sheetList.value.find(s => s.id === sheetId)
+  if (sheet) {
+    editingSheetId.value = sheetId
+    renamingSheetName.value = sheet.name
   }
 }
 
 function saveRenameSheet() {
-  if (!editingSheetId.value || !tableData.value.sheets) return
-  
+  if (!editingSheetId.value) return
+
   const newName = renamingSheetName.value.trim()
   if (newName) {
-    const sheetIndex = tableData.value.sheets.findIndex(s => s.id === editingSheetId.value)
-    if (sheetIndex >= 0) {
-      tableData.value.sheets[sheetIndex].name = newName
+    const sheet = sheetList.value.find(s => s.id === editingSheetId.value)
+    if (sheet) {
+      sheet.name = newName
       emitData()
     }
   }
-  
+
   editingSheetId.value = null
   renamingSheetName.value = ''
 }
@@ -353,7 +377,7 @@ function cancelRenameSheet() {
 
 function deleteSheet(sheetId: string) {
   if (!tableData.value.sheets || tableData.value.sheets.length <= 1) return
-  
+
   ElMessageBox.confirm('确定要删除此工作表吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
@@ -362,16 +386,15 @@ function deleteSheet(sheetId: string) {
     const sheetIndex = tableData.value.sheets!.findIndex(s => s.id === sheetId)
     if (sheetIndex >= 0) {
       tableData.value.sheets!.splice(sheetIndex, 1)
-      
+
       if (tableData.value.activeSheetId === sheetId) {
-        const firstSheet = tableData.value.sheets![0]
-        loadSheetFromSheets(firstSheet.id)
-        
-        selectAll.value = false
-        selectedRowIndices.value = []
-        editingCell.value = null
+        tableData.value.activeSheetId = tableData.value.sheets![0].id
       }
-      
+
+      selectAll.value = false
+      selectedRowIndices.value = []
+      editingCell.value = null
+
       emitData()
       ElMessage.success('已删除工作表')
     }
@@ -379,96 +402,61 @@ function deleteSheet(sheetId: string) {
 }
 
 watch(() => props.modelValue, (newVal) => {
-  if (isEmitting.value) return
-  
-  if (newVal.id !== tableData.value.id) {
-    tableData.value = JSON.parse(JSON.stringify(newVal))
+  tableData.value = JSON.parse(JSON.stringify(newVal))
+  if (!initialized.value) {
     ensureSheets()
+    initialized.value = true
   }
 })
 
 function emitData() {
-  isEmitting.value = true
-  saveCurrentSheetToSheets()
   emit('update:modelValue', JSON.parse(JSON.stringify(tableData.value)))
-  isEmitting.value = false
-}
-
-function getCellValue(rowIndex: number, colIndex: number): string {
-  const rowId = tableData.value.rows[rowIndex]?.id
-  const colId = tableData.value.columns[colIndex]?.id
-  
-  if (!rowId || !colId) return ''
-  
-  const cell = tableData.value.cells.find(c => c.rowId === rowId && c.colId === colId)
-  return cell?.value || ''
-}
-
-function setCellValue(rowIndex: number, colIndex: number, value: string) {
-  const rowId = tableData.value.rows[rowIndex]?.id
-  const colId = tableData.value.columns[colIndex]?.id
-  
-  if (!rowId || !colId) return
-  
-  const cellIndex = tableData.value.cells.findIndex(c => c.rowId === rowId && c.colId === colId)
-  
-  if (cellIndex >= 0) {
-    tableData.value.cells[cellIndex].value = value
-  } else {
-    tableData.value.cells.push({ rowId, colId, value })
-  }
-  
-  emitData()
-}
-
-function getFieldTypeLabel(type: TableFieldType): string {
-  const labels: Record<TableFieldType, string> = {
-    text: '文本',
-    select: '单选',
-    date: '日期',
-    checkbox: '复选框',
-  }
-  return labels[type] || type
 }
 
 function handleAddRow() {
+  const sheet = currentSheet.value
+  if (!sheet) return
+
   const newRowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-  
-  tableData.value.rows.push({
+
+  sheet.rows.push({
     id: newRowId,
     height: 40,
   })
-  
-  tableData.value.columns.forEach(col => {
-    tableData.value.cells.push({
+
+  sheet.columns.forEach(col => {
+    sheet.cells.push({
       rowId: newRowId,
       colId: col.id,
       value: '',
     })
   })
-  
+
   emitData()
   ElMessage.success('已添加新行')
 }
 
 function handleAddColumn() {
+  const sheet = currentSheet.value
+  if (!sheet) return
+
   const newColId = 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-  
-  tableData.value.columns.push({
+
+  sheet.columns.push({
     id: newColId,
     width: 150,
     fieldType: 'text',
-    title: '字段' + (tableData.value.columns.length + 1),
+    title: '字段' + (sheet.columns.length + 1),
   })
-  
-  tableData.value.rows.forEach(row => {
-    tableData.value.cells.push({
+
+  sheet.rows.forEach(row => {
+    sheet.cells.push({
       rowId: row.id,
       colId: newColId,
       value: '',
     })
   })
-  
+
   emitData()
   ElMessage.success('已添加新列')
 }
@@ -485,7 +473,7 @@ function handleDeleteTable() {
 
 function handleSelectAll(checked: boolean) {
   if (checked) {
-    selectedRowIndices.value = tableData.value.rows.map((_, i) => i)
+    selectedRowIndices.value = currentRows.value.map((_, i) => i)
   } else {
     selectedRowIndices.value = []
   }
@@ -496,7 +484,7 @@ function handleRowClick(rowIndex: number, e: MouseEvent) {
     const lastSelected = selectedRowIndices.value[selectedRowIndices.value.length - 1]
     const min = Math.min(lastSelected, rowIndex)
     const max = Math.max(lastSelected, rowIndex)
-    
+
     selectedRowIndices.value = []
     for (let i = min; i <= max; i++) {
       selectedRowIndices.value.push(i)
@@ -511,23 +499,23 @@ function handleRowClick(rowIndex: number, e: MouseEvent) {
   } else {
     selectedRowIndices.value = [rowIndex]
   }
-  
-  selectAll.value = selectedRowIndices.value.length === tableData.value.rows.length
+
+  selectAll.value = selectedRowIndices.value.length === currentRows.value.length
 }
 
 function handleCellClick(rowIndex: number, colIndex: number, e: MouseEvent) {
-  if (editingCell.value && 
+  if (editingCell.value &&
       (editingCell.value.rowIndex !== rowIndex || editingCell.value.colIndex !== colIndex)) {
     saveCellEdit()
   }
 }
 
 function handleCellDblClick(rowIndex: number, colIndex: number) {
-  const col = tableData.value.columns[colIndex]
-  
+  const col = currentColumns.value[colIndex]
+
   editingCell.value = { rowIndex, colIndex }
   editingValue.value = getCellValue(rowIndex, colIndex)
-  
+
   if (col.fieldType === 'checkbox') {
     checkboxValue.value = editingValue.value === 'true'
   }
@@ -535,13 +523,13 @@ function handleCellDblClick(rowIndex: number, colIndex: number) {
 
 function saveCellEdit() {
   if (!editingCell.value) return
-  
-  const col = tableData.value.columns[editingCell.value.colIndex]
-  
+
+  const col = currentColumns.value[editingCell.value.colIndex]
+
   if (col.fieldType !== 'checkbox') {
     setCellValue(editingCell.value.rowIndex, editingCell.value.colIndex, editingValue.value)
   }
-  
+
   editingCell.value = null
   editingValue.value = ''
 }
@@ -552,12 +540,15 @@ function handleCheckboxChange(rowIndex: number, colIndex: number) {
 
 function startEditHeader(colIndex: number) {
   editingColIndex.value = colIndex
-  editingTitle.value = tableData.value.columns[colIndex].title
+  editingTitle.value = currentColumns.value[colIndex].title
 }
 
 function saveHeaderEdit(colIndex: number) {
+  const sheet = currentSheet.value
+  if (!sheet) return
+
   if (editingTitle.value.trim()) {
-    tableData.value.columns[colIndex].title = editingTitle.value.trim()
+    sheet.columns[colIndex].title = editingTitle.value.trim()
     emitData()
   }
   editingColIndex.value = null
@@ -566,24 +557,27 @@ function saveHeaderEdit(colIndex: number) {
 
 function startResizeColumn(colIndex: number, e: MouseEvent) {
   e.preventDefault()
-  
+
   resizingColumn.value = {
     colIndex,
     startX: e.clientX,
-    startWidth: tableData.value.columns[colIndex].width,
+    startWidth: currentColumns.value[colIndex].width,
   }
-  
+
   document.addEventListener('mousemove', handleResizeMove)
   document.addEventListener('mouseup', handleResizeEnd)
 }
 
 function handleResizeMove(e: MouseEvent) {
   if (!resizingColumn.value) return
-  
+
+  const sheet = currentSheet.value
+  if (!sheet) return
+
   const deltaX = e.clientX - resizingColumn.value.startX
   const newWidth = Math.max(80, resizingColumn.value.startWidth + deltaX)
-  
-  tableData.value.columns[resizingColumn.value.colIndex].width = newWidth
+
+  sheet.columns[resizingColumn.value.colIndex].width = newWidth
 }
 
 function handleResizeEnd() {
@@ -591,13 +585,14 @@ function handleResizeEnd() {
     emitData()
     resizingColumn.value = null
   }
-  
+
   document.removeEventListener('mousemove', handleResizeMove)
   document.removeEventListener('mouseup', handleResizeEnd)
 }
 
 onMounted(() => {
   ensureSheets()
+  initialized.value = true
 })
 
 onUnmounted(() => {
@@ -639,12 +634,12 @@ onUnmounted(() => {
   font-size: 13px;
   color: #606266;
   border-radius: 4px;
-  
+
   &:hover {
     background: #ecf5ff;
     color: #409eff;
   }
-  
+
   .el-icon {
     font-size: 14px;
   }
@@ -673,11 +668,11 @@ onUnmounted(() => {
   border-right: 1px solid #e4e7ed;
   position: relative;
   vertical-align: middle;
-  
+
   &:last-child {
     border-right: none;
   }
-  
+
   &.checkbox-header {
     width: 50px;
     text-align: center;
@@ -691,7 +686,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 12px;
   height: 100%;
-  
+
   .header-title {
     flex: 1;
     min-width: 0;
@@ -699,14 +694,14 @@ onUnmounted(() => {
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
-    
+
     :deep(.el-input__wrapper) {
       padding: 2px 8px;
       box-shadow: none;
       background: #fff;
     }
   }
-  
+
   .field-type-badge {
     font-size: 12px;
     color: #909399;
@@ -725,7 +720,7 @@ onUnmounted(() => {
   width: 6px;
   cursor: col-resize;
   z-index: 10;
-  
+
   &:hover {
     background: #409eff;
   }
@@ -734,11 +729,11 @@ onUnmounted(() => {
 .table-row {
   height: 40px;
   transition: background 0.2s;
-  
+
   &:hover {
     background: #f5f7fa;
   }
-  
+
   &.row-selected {
     background: #ecf5ff;
   }
@@ -754,25 +749,25 @@ onUnmounted(() => {
   vertical-align: middle;
   position: relative;
   cursor: pointer;
-  
+
   &:last-child {
     border-right: none;
   }
-  
+
   &.checkbox-cell {
     width: 50px;
     text-align: center;
     padding: 0;
-    
+
     .row-number {
       font-size: 13px;
       color: #909399;
     }
   }
-  
+
   &.cell-editing {
     padding: 4px;
-    
+
     :deep(.el-input__wrapper) {
       padding: 0 8px;
     }
@@ -794,11 +789,11 @@ onUnmounted(() => {
   gap: 0;
   flex: 1;
   overflow-x: auto;
-  
+
   &::-webkit-scrollbar {
     height: 4px;
   }
-  
+
   &::-webkit-scrollbar-thumb {
     background: #c0c4cc;
     border-radius: 2px;
@@ -816,16 +811,16 @@ onUnmounted(() => {
   transition: all 0.2s;
   height: 35px;
   position: relative;
-  
+
   &:hover {
     color: #409eff;
     background: #f5f7fa;
-    
+
     .sheet-close {
       opacity: 1;
     }
   }
-  
+
   &.is-active {
     color: #409eff;
     font-weight: 500;
@@ -843,7 +838,7 @@ onUnmounted(() => {
 
 .sheet-name-input {
   width: 100px;
-  
+
   :deep(.el-input__wrapper) {
     padding: 0 8px;
     box-shadow: none;
@@ -856,7 +851,7 @@ onUnmounted(() => {
   font-size: 12px;
   padding: 2px;
   border-radius: 2px;
-  
+
   &:hover {
     background: #f5f7fa;
     color: #f56c6c;
@@ -873,12 +868,12 @@ onUnmounted(() => {
   cursor: pointer;
   color: #909399;
   transition: all 0.2s;
-  
+
   &:hover {
     background: #ecf5ff;
     color: #409eff;
   }
-  
+
   .el-icon {
     font-size: 14px;
   }
