@@ -1,6 +1,6 @@
 import { ref, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { Block, BlockType, InteractiveTableData } from '@/types'
+import type { Block, BlockType, InteractiveTableData, InteractiveCanvasData } from '@/types'
 
 export function useBlockEditor(modelValue: Block[]) {
   const blocks = ref<Block[]>(JSON.parse(JSON.stringify(modelValue || [])))
@@ -20,7 +20,7 @@ export function useBlockEditor(modelValue: Block[]) {
     if (isSyncingFromProps.value) {
       nextTick(() => {
         blocks.value.forEach((block) => {
-          if (block.type !== 'table' && block.type !== 'code' && block.type !== 'divider') {
+          if (block.type !== 'table' && block.type !== 'canvas' && block.type !== 'code' && block.type !== 'divider') {
             const el = document.querySelector(`[data-block-id="${block.id}"]`) as HTMLElement
             if (el && el.textContent !== block.content) {
               el.textContent = block.content || ''
@@ -70,6 +70,16 @@ export function useBlockEditor(modelValue: Block[]) {
     }
   }
 
+  function createDefaultCanvas(): InteractiveCanvasData {
+    return {
+      id: 'canvas_' + Date.now(),
+      width: 1200,
+      height: 800,
+      elements: [],
+      backgroundColor: '#ffffff'
+    }
+  }
+
   function createBlock(type: BlockType, content: string = ''): Block {
     return {
       id: generateId(),
@@ -77,11 +87,13 @@ export function useBlockEditor(modelValue: Block[]) {
       content,
       meta: type === 'table'
         ? { tableData: createDefaultTable() }
-        : type === 'code'
-          ? { language: 'javascript' }
-          : type === 'todo'
-            ? { checked: false }
-            : undefined,
+        : type === 'canvas'
+          ? { canvasData: createDefaultCanvas() }
+          : type === 'code'
+            ? { language: 'javascript' }
+            : type === 'todo'
+              ? { checked: false }
+              : undefined,
     }
   }
 
@@ -284,6 +296,16 @@ export function useBlockEditor(modelValue: Block[]) {
         blocks.value[blockIndex].meta = {}
       }
       blocks.value[blockIndex].meta!.tableData = data
+    }
+  }
+
+  function updateBlockCanvas(blockId: string, data: InteractiveCanvasData) {
+    const blockIndex = blocks.value.findIndex(b => b.id === blockId)
+    if (blockIndex >= 0) {
+      if (!blocks.value[blockIndex].meta) {
+        blocks.value[blockIndex].meta = {}
+      }
+      blocks.value[blockIndex].meta!.canvasData = data
     }
   }
 
@@ -906,11 +928,13 @@ export function useBlockEditor(modelValue: Block[]) {
     getPlaceholder,
     createBlock,
     createDefaultTable,
+    createDefaultCanvas,
     addFirstBlock,
     handleContentInput,
     handleKeyDown,
     handleTodoCheck,
     updateBlockTable,
+    updateBlockCanvas,
     deleteBlock,
     showSlashMenu,
     hideSlashMenu,

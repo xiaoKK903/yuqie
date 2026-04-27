@@ -129,7 +129,43 @@ export interface InteractiveTableProps {
   onDelete?: () => void
 }
 
-export type BlockType = 'text' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'bullet' | 'numbered' | 'todo' | 'code' | 'quote' | 'table' | 'divider'
+export type BlockType = 'text' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'bullet' | 'numbered' | 'todo' | 'code' | 'quote' | 'table' | 'divider' | 'canvas'
+
+export type CanvasTool = 'select' | 'pen' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'eraser'
+export type CanvasShapeType = 'pen' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text'
+
+export interface CanvasPoint {
+  x: number
+  y: number
+}
+
+export interface CanvasElement {
+  id: string
+  type: CanvasShapeType
+  points?: CanvasPoint[]
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  startX?: number
+  startY?: number
+  endX?: number
+  endY?: number
+  text?: string
+  strokeColor: string
+  strokeWidth: number
+  fillColor?: string
+  fontSize?: number
+  isSelected?: boolean
+}
+
+export interface InteractiveCanvasData {
+  id: string
+  width: number
+  height: number
+  elements: CanvasElement[]
+  backgroundColor: string
+}
 
 export interface Block {
   id: string
@@ -139,6 +175,7 @@ export interface Block {
     language?: string
     checked?: boolean
     tableData?: InteractiveTableData
+    canvasData?: InteractiveCanvasData
   }
 }
 

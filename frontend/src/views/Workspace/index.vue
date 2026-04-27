@@ -455,10 +455,12 @@ const lastSavedContent = ref('')
 const versionHistoryVisible = ref(false)
 
 interface ContentFragment {
-  type: 'text' | 'table'
+  type: 'text' | 'table' | 'canvas'
   content: string
   tableData?: InteractiveTableData
   tableId?: string
+  canvasData?: InteractiveCanvasData
+  canvasId?: string
   startIndex?: number
   endIndex?: number
 }
@@ -477,50 +479,99 @@ const previewStyle = computed(() => ({
 
 function parseContentFragments(content: string): ContentFragment[] {
   const fragments: ContentFragment[] = []
-  const tableStartRegex = /^:::table\s*$/gm
-  const tableEndRegex = /^:::\s*$/gm
   
   let lastIndex = 0
-  let match: RegExpExecArray | null
   
-  while ((match = tableStartRegex.exec(content)) !== null) {
-    const startIndex = match.index
-    const beforeTable = content.substring(lastIndex, startIndex)
+  function findNextSpecialBlock(startFrom: number): { type: 'table' | 'canvas' | null; index: number } {
+    const tableMatch = content.indexOf(':::table', startFrom)
+    const canvasMatch = content.indexOf(':::canvas', startFrom)
     
-    if (beforeTable.trim()) {
+    if (tableMatch === -1 && canvasMatch === -1) {
+      return { type: null, index: -1 }
+    }
+    
+    if (tableMatch === -1) {
+      return { type: 'canvas', index: canvasMatch }
+    }
+    
+    if (canvasMatch === -1) {
+      return { type: 'table', index: tableMatch }
+    }
+    
+    return tableMatch < canvasMatch 
+      ? { type: 'table', index: tableMatch }
+      : { type: 'canvas', index: canvasMatch }
+  }
+  
+  while (true) {
+    const nextBlock = findNextSpecialBlock(lastIndex)
+    
+    if (nextBlock.type === null) {
+      const remainingContent = content.substring(lastIndex)
+      if (remainingContent.trim()) {
+        fragments.push({
+          type: 'text',
+          content: remainingContent,
+        })
+      }
+      break
+    }
+    
+    const beforeBlock = content.substring(lastIndex, nextBlock.index)
+    if (beforeBlock.trim()) {
       fragments.push({
         type: 'text',
-        content: beforeTable,
+        content: beforeBlock,
       })
     }
     
-    const tableStartEnd = match.index + match[0].length
-    const afterTableStart = content.substring(tableStartEnd)
+    const blockStartLineMatch = content.match(
+      new RegExp(`^:::${nextBlock.type}\\s*$`, 'm')
+    )
+    if (!blockStartLineMatch) {
+      lastIndex = nextBlock.index + 3
+      continue
+    }
     
-    const endMatch = tableEndRegex.exec(afterTableStart)
+    const startIndex = nextBlock.index
+    const blockStartEnd = startIndex + blockStartLineMatch[0].length
+    
+    const afterBlockStart = content.substring(blockStartEnd)
+    const endMatch = /^:::\s*$/m.exec(afterBlockStart)
+    
     if (endMatch) {
-      const tableJsonStr = afterTableStart.substring(0, endMatch.index).trim()
+      const blockJsonStr = afterBlockStart.substring(0, endMatch.index).trim()
+      const blockEndIndex = blockStartEnd + endMatch.index + endMatch[0].length
       
       try {
-        const tableData = JSON.parse(tableJsonStr) as InteractiveTableData
-        const tableEndIndex = tableStartEnd + endMatch.index + endMatch[0].length
-        
-        fragments.push({
-          type: 'table',
-          content: tableJsonStr,
-          tableData,
-          tableId: tableData.id,
-          startIndex,
-          endIndex: tableEndIndex,
-        })
-        
-        lastIndex = tableEndIndex
+        if (nextBlock.type === 'table') {
+          const tableData = JSON.parse(blockJsonStr) as InteractiveTableData
+          fragments.push({
+            type: 'table',
+            content: blockJsonStr,
+            tableData,
+            tableId: tableData.id,
+            startIndex,
+            endIndex: blockEndIndex,
+          })
+        } else if (nextBlock.type === 'canvas') {
+          const canvasData = JSON.parse(blockJsonStr) as InteractiveCanvasData
+          fragments.push({
+            type: 'canvas',
+            content: blockJsonStr,
+            canvasData,
+            canvasId: canvasData.id,
+            startIndex,
+            endIndex: blockEndIndex,
+          })
+        }
+        lastIndex = blockEndIndex
       } catch (e) {
         fragments.push({
           type: 'text',
-          content: content.substring(startIndex, tableStartEnd + endMatch.index + endMatch[0].length),
+          content: content.substring(startIndex, blockEndIndex),
         })
-        lastIndex = tableStartEnd + endMatch.index + endMatch[0].length
+        lastIndex = blockEndIndex
       }
     } else {
       fragments.push({
@@ -530,13 +581,6 @@ function parseContentFragments(content: string): ContentFragment[] {
       lastIndex = content.length
       break
     }
-  }
-  
-  if (lastIndex < content.length) {
-    fragments.push({
-      type: 'text',
-      content: content.substring(lastIndex),
-    })
   }
   
   return fragments
@@ -609,6 +653,8 @@ function markdownToBlocks(markdown: string): Block[] {
   for (const fragment of fragments) {
     if (fragment.type === 'table') {
       blocks.push(createBlock('table', '', { tableData: fragment.tableData }))
+    } else if (fragment.type === 'canvas') {
+      blocks.push(createBlock('canvas', '', { canvasData: fragment.canvasData }))
     } else {
       const lines = fragment.content.split('\n')
       
@@ -720,6 +766,13 @@ function blocksToMarkdown(blocks: Block[]): string {
         if (block.meta?.tableData) {
           lines.push(':::table')
           lines.push(JSON.stringify(block.meta.tableData, null, 2))
+          lines.push(':::')
+        }
+        break
+      case 'canvas':
+        if (block.meta?.canvasData) {
+          lines.push(':::canvas')
+          lines.push(JSON.stringify(block.meta.canvasData, null, 2))
           lines.push(':::')
         }
         break

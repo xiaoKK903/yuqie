@@ -20,6 +20,14 @@
         />
       </template>
 
+      <template v-else-if="block.type === 'canvas'">
+        <InteractiveCanvas
+          :modelValue="block.meta?.canvasData || defaultCanvasData"
+          @update:modelValue="(data: InteractiveCanvasData) => updateBlockCanvas(block.id, data)"
+          @delete="deleteBlock(block.id)"
+        />
+      </template>
+
       <template v-else-if="block.type === 'code'">
         <div class="code-block-wrapper">
           <div class="code-header">
@@ -69,12 +77,14 @@
 <script setup lang="ts">
 import { MoreFilled, Plus, Delete } from '@element-plus/icons-vue'
 import InteractiveTable from './InteractiveTable.vue'
-import type { Block, BlockType, InteractiveTableData } from '@/types'
+import InteractiveCanvas from './InteractiveCanvas.vue'
+import type { Block, BlockType, InteractiveTableData, InteractiveCanvasData } from '@/types'
 
 interface Props {
   block: Block
   activeBlockId: string | null
   defaultTableData: InteractiveTableData
+  defaultCanvasData: InteractiveCanvasData
 }
 
 interface Emits {
@@ -86,6 +96,7 @@ interface Emits {
   (e: 'keydown', blockId: string, e: KeyboardEvent): void
   (e: 'slash-menu', blockId: string, e: MouseEvent): void
   (e: 'table-update', blockId: string, data: InteractiveTableData): void
+  (e: 'canvas-update', blockId: string, data: InteractiveCanvasData): void
   (e: 'todo-check', blockId: string, checked: boolean): void
   (e: 'paste', blockId: string, e: ClipboardEvent): void
 }
@@ -108,6 +119,7 @@ function getPlaceholder(type: BlockType): string {
     quote: '引用内容',
     code: '',
     table: '',
+    canvas: '',
     divider: '',
   }
   return placeholders[type] || '输入内容...'
@@ -127,6 +139,10 @@ function handleTodoCheck(blockId: string, checked: boolean) {
 
 function updateBlockTable(blockId: string, data: InteractiveTableData) {
   emit('table-update', blockId, data)
+}
+
+function updateBlockCanvas(blockId: string, data: InteractiveCanvasData) {
+  emit('canvas-update', blockId, data)
 }
 
 function deleteBlock(blockId: string) {

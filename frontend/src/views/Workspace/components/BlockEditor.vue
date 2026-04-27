@@ -6,6 +6,7 @@
       :block="block"
       :active-block-id="activeBlockId"
       :default-table-data="createDefaultTable()"
+      :default-canvas-data="createDefaultCanvas()"
       @click="handleBlockClick"
       @focus="handleBlockFocus"
       @content-input="handleContentInput"
@@ -13,6 +14,7 @@
       @delete="deleteBlock"
       @slash-menu="showSlashMenu"
       @table-update="updateBlockTable"
+      @canvas-update="updateBlockCanvas"
       @todo-check="handleTodoCheck"
       @paste="handlePaste"
     />
@@ -67,7 +69,7 @@ import { UploadFilled } from '@element-plus/icons-vue'
 import BlockItem from './BlockItem.vue'
 import SlashMenu from './SlashMenu.vue'
 import { useBlockEditor } from './useBlockEditor'
-import type { Block, BlockType, InteractiveTableData } from '@/types'
+import type { Block, BlockType, InteractiveTableData, InteractiveCanvasData } from '@/types'
 
 const props = defineProps<{
   modelValue: Block[]
@@ -92,11 +94,13 @@ const {
   getPlaceholder,
   createBlock,
   createDefaultTable,
+  createDefaultCanvas,
   addFirstBlock,
   handleContentInput,
   handleKeyDown,
   handleTodoCheck,
   updateBlockTable,
+  updateBlockCanvas,
   deleteBlock,
   showSlashMenu,
   hideSlashMenu,
