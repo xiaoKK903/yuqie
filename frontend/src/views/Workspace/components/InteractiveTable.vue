@@ -131,13 +131,13 @@
         <div class="align-group">
           <el-radio-group v-model="formatState.align" size="small" @change="handleAlign">
             <el-radio-button value="left">
-              <el-icon><AlignLeft /></el-icon>
+              <el-icon><ArrowLeft /></el-icon>
             </el-radio-button>
             <el-radio-button value="center">
-              <el-icon><AlignCenter /></el-icon>
+              <el-icon><Minus /></el-icon>
             </el-radio-button>
             <el-radio-button value="right">
-              <el-icon><AlignRight /></el-icon>
+              <el-icon><ArrowRight /></el-icon>
             </el-radio-button>
           </el-radio-group>
         </div>
@@ -388,15 +388,15 @@ import {
   Close,
   Grid,
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   Bold,
   Italic,
   Underline,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   Brush,
   FullScreen,
   CopyDocument,
+  Minus,
 } from '@element-plus/icons-vue'
 import type { InteractiveTableData, TableFieldType, CellFormat, HorizontalAlign, BorderStyle } from '@/types'
 
