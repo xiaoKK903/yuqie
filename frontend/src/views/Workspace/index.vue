@@ -48,16 +48,14 @@
     <div class="main-content">
       <template v-if="currentDocument">
         <div class="doc-header">
-          <h2 class="doc-title" @dblclick="startEditTitle">
-            <template v-if="isEditingTitle">
-              <el-input
-                v-model="editTitle"
-                @blur="saveTitle"
-                @keyup.enter="saveTitle"
-                @keyup.esc="cancelEditTitle"
-              />
-            </template>
-            <template v-else>{{ currentDocument.title }}</template>
+          <h2 class="doc-title">
+            <el-input
+              v-model="editTitle"
+              :placeholder="currentDocument.title || '未命名文档'"
+              @blur="saveTitle"
+              @keyup.enter="saveTitle"
+              @keyup.esc="cancelEditTitle"
+            />
           </h2>
           <div class="doc-meta">
             <span class="save-status" :class="saveStatus">
@@ -416,7 +414,6 @@ const blockEditorRef = ref<InstanceType<typeof BlockEditor> | null>(null)
 const searchKeyword = ref('')
 const editTitle = ref('')
 const editContent = ref('')
-const isEditingTitle = ref(false)
 const cursorStart = ref(0)
 const cursorEnd = ref(0)
 
@@ -976,38 +973,37 @@ async function handleDrop(params: {
 }
 
 function startEditTitle() {
-  if (!currentDocument.value) return
-  editTitle.value = currentDocument.value.title
-  isEditingTitle.value = true
-  nextTick(() => {
-    const input = document.querySelector('.doc-title input') as HTMLInputElement
-    if (input) {
-      input.focus()
-      input.select()
-    }
-  })
 }
 
 async function saveTitle() {
-  if (!currentDocument.value || !editTitle.value.trim()) {
-    cancelEditTitle()
+  if (!currentDocument.value) return
+  
+  const newTitle = editTitle.value.trim()
+  
+  if (newTitle === currentDocument.value.title) {
     return
   }
   
-  await documentApi.update(currentDocument.value.id, { title: editTitle.value })
-  currentDocument.value.title = editTitle.value
+  if (newTitle === '') {
+    editTitle.value = ''
+    return
+  }
+  
+  await documentApi.update(currentDocument.value.id, { title: newTitle })
+  currentDocument.value.title = newTitle
   
   const node = getAllNodes().find(n => n.id === currentDocument.value!.id && n.type === 'document')
   if (node) {
-    node.name = editTitle.value
+    node.name = newTitle
   }
   
-  isEditingTitle.value = false
   ElMessage.success('保存成功')
 }
 
 function cancelEditTitle() {
-  isEditingTitle.value = false
+  if (currentDocument.value) {
+    editTitle.value = currentDocument.value.title || ''
+  }
 }
 
 function saveCursorPosition() {
@@ -1611,7 +1607,8 @@ watch(currentDocument, (doc) => {
     editContent.value = doc.content
     lastSavedContent.value = doc.content || ''
     saveStatus.value = 'saved'
-    console.log('[文档切换] 加载内容:', JSON.stringify(doc.content?.substring(0, 100)))
+    
+    editTitle.value = doc.title || ''
     
     if (useBlockEditor.value) {
       editorBlocks.value = markdownToBlocks(doc.content || '')
@@ -1648,6 +1645,7 @@ watch(editorBlocks, (newBlocks) => {
 
 let hasOpenedDoc = ref(false)
 let isNewDoc = computed(() => route.query.newDoc === '1')
+let hasFocusedTitle = ref(false)
 
 watch(() => [treeData.value, loading.value], () => {
   if (hasOpenedDoc.value || loading.value || treeData.value.length === 0) return
@@ -1666,20 +1664,15 @@ watch(() => [treeData.value, loading.value], () => {
   }
 }, { immediate: true })
 
-let hasEnteredEditMode = ref(false)
-
 watch([currentDocument, isNewDoc], ([doc, isNew]) => {
-  if (doc && isNew && !hasEnteredEditMode.value) {
-    hasEnteredEditMode.value = true
+  if (doc && isNew && !hasFocusedTitle.value) {
+    hasFocusedTitle.value = true
+    editTitle.value = ''
     nextTick(() => {
-      editTitle.value = ''
-      isEditingTitle.value = true
-      nextTick(() => {
-        const input = document.querySelector('.doc-title input') as HTMLInputElement
-        if (input) {
-          input.focus()
-        }
-      })
+      const input = document.querySelector('.doc-title input') as HTMLInputElement
+      if (input) {
+        input.focus()
+      }
     })
   }
 })
