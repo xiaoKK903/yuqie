@@ -14,6 +14,7 @@
       @slash-menu="showSlashMenu"
       @table-update="updateBlockTable"
       @todo-check="handleTodoCheck"
+      @paste="handlePaste"
     />
 
     <div
@@ -111,6 +112,7 @@ const {
   handleEditorClick,
   handleBlockClick,
   handleBlockFocus,
+  handlePaste,
 } = useBlockEditor(props.modelValue)
 
 watch(() => props.modelValue, (newVal) => {
