@@ -1647,6 +1647,7 @@ watch(editorBlocks, (newBlocks) => {
 }, { deep: true })
 
 let hasOpenedDoc = ref(false)
+let isNewDoc = computed(() => route.query.newDoc === '1')
 
 watch(() => [treeData.value, loading.value], () => {
   if (hasOpenedDoc.value || loading.value || treeData.value.length === 0) return
@@ -1664,6 +1665,24 @@ watch(() => [treeData.value, loading.value], () => {
     }
   }
 }, { immediate: true })
+
+let hasEnteredEditMode = ref(false)
+
+watch([currentDocument, isNewDoc], ([doc, isNew]) => {
+  if (doc && isNew && !hasEnteredEditMode.value) {
+    hasEnteredEditMode.value = true
+    nextTick(() => {
+      editTitle.value = ''
+      isEditingTitle.value = true
+      nextTick(() => {
+        const input = document.querySelector('.doc-title input') as HTMLInputElement
+        if (input) {
+          input.focus()
+        }
+      })
+    })
+  }
+})
 
 function updateFormatState() {
   if (!useBlockEditor.value) return
