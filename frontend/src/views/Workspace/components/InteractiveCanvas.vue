@@ -394,7 +394,6 @@ const canvasData = ref<InteractiveCanvasData>(JSON.parse(JSON.stringify(props.mo
 
 watch(() => props.modelValue, (newVal) => {
   canvasData.value = JSON.parse(JSON.stringify(newVal))
-  initHistory()
 }, { deep: true })
 
 onMounted(() => {
@@ -478,13 +477,31 @@ function getArrowPath(element: CanvasElement): string {
 function handleMouseDown(e: MouseEvent) {
   const pos = getMousePos(e)
   
+  if (isEditingText.value) {
+    const clickedOnEditingText = editingTextElement.value && 
+      isPointInElement(pos, editingTextElement.value)
+    
+    if (!clickedOnEditingText) {
+      handleTextEditBlur()
+    }
+    return
+  }
+  
   if (currentTool.value === 'text') {
+    const clickedOnExistingText = canvasData.value.elements.some(el => 
+      el.type === 'text' && isPointInElement(pos, el)
+    )
+    
+    if (clickedOnExistingText) {
+      return
+    }
+    
     const newElement: CanvasElement = {
       id: generateId(),
       type: 'text',
       x: pos.x,
       y: pos.y,
-      text: '请输入文字',
+      text: '',
       strokeColor: strokeColor.value,
       strokeWidth: strokeWidth.value,
       fontSize: fontSize.value
