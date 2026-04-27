@@ -41,6 +41,24 @@
         <el-button
           text
           class="tool-btn"
+          :class="{ 'is-active': currentTool === 'triangle' }"
+          @click="currentTool = 'triangle'"
+          title="三角形"
+        >
+          <span class="tool-icon">△</span>
+        </el-button>
+        <el-button
+          text
+          class="tool-btn"
+          :class="{ 'is-active': currentTool === 'diamond' }"
+          @click="currentTool = 'diamond'"
+          title="菱形"
+        >
+          <span class="tool-icon">◇</span>
+        </el-button>
+        <el-button
+          text
+          class="tool-btn"
           :class="{ 'is-active': currentTool === 'line' }"
           @click="currentTool = 'line'"
           title="线条"
@@ -250,6 +268,26 @@
             @mousedown.stop="handleElementClick(element, $event)"
           />
 
+          <polygon
+            v-else-if="element.type === 'triangle'"
+            :points="getTrianglePoints(element)"
+            :fill="element.fillColor || 'transparent'"
+            :stroke="element.strokeColor"
+            :stroke-width="element.strokeWidth"
+            :class="{ 'element-selected': element.isSelected }"
+            @mousedown.stop="handleElementClick(element, $event)"
+          />
+
+          <polygon
+            v-else-if="element.type === 'diamond'"
+            :points="getDiamondPoints(element)"
+            :fill="element.fillColor || 'transparent'"
+            :stroke="element.strokeColor"
+            :stroke-width="element.strokeWidth"
+            :class="{ 'element-selected': element.isSelected }"
+            @mousedown.stop="handleElementClick(element, $event)"
+          />
+
           <line
             v-else-if="element.type === 'line'"
             :x1="element.startX"
@@ -322,7 +360,7 @@
             />
           </g>
 
-          <g v-if="element.isSelected && (element.type === 'rectangle' || element.type === 'circle' || element.type === 'text' || element.type === 'emoji' || element.type === 'image')">
+          <g v-if="element.isSelected && (element.type === 'rectangle' || element.type === 'circle' || element.type === 'triangle' || element.type === 'diamond' || element.type === 'text' || element.type === 'emoji' || element.type === 'image')">
             <rect
               :x="getElementBounds(element).x - 5"
               :y="getElementBounds(element).y - 5"
@@ -367,6 +405,24 @@
           :cy="drawStartY + (currentY - drawStartY) / 2"
           :rx="Math.abs((currentX - drawStartX) / 2)"
           :ry="Math.abs((currentY - drawStartY) / 2)"
+          :fill="fillColor || 'transparent'"
+          :stroke="strokeColor"
+          :stroke-width="strokeWidth"
+          :stroke-dasharray="'5,5'"
+        />
+
+        <polygon
+          v-else-if="isDrawing && currentTool === 'triangle' && drawStartX !== null && drawStartY !== null"
+          :points="getTrianglePreviewPoints()"
+          :fill="fillColor || 'transparent'"
+          :stroke="strokeColor"
+          :stroke-width="strokeWidth"
+          :stroke-dasharray="'5,5'"
+        />
+
+        <polygon
+          v-else-if="isDrawing && currentTool === 'diamond' && drawStartX !== null && drawStartY !== null"
+          :points="getDiamondPreviewPoints()"
           :fill="fillColor || 'transparent'"
           :stroke="strokeColor"
           :stroke-width="strokeWidth"
@@ -616,7 +672,7 @@ function getArrowPath(element: CanvasElement): string {
 }
 
 function getElementBounds(element: CanvasElement): { x: number; y: number; width: number; height: number } {
-  if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'image') {
+  if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'triangle' || element.type === 'diamond' || element.type === 'image') {
     return {
       x: element.x || 0,
       y: element.y || 0,
@@ -648,6 +704,40 @@ function getElementBounds(element: CanvasElement): { x: number; y: number; width
   return { x: 0, y: 0, width: 0, height: 0 }
 }
 
+function getTrianglePoints(element: CanvasElement): string {
+  const x = element.x || 0
+  const y = element.y || 0
+  const w = element.width || 0
+  const h = element.height || 0
+  return `${x + w / 2},${y} ${x},${y + h} ${x + w},${y + h}`
+}
+
+function getDiamondPoints(element: CanvasElement): string {
+  const x = element.x || 0
+  const y = element.y || 0
+  const w = element.width || 0
+  const h = element.height || 0
+  return `${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`
+}
+
+function getTrianglePreviewPoints(): string {
+  if (drawStartX.value === null || drawStartY.value === null) return ''
+  const x1 = Math.min(drawStartX.value, currentX.value)
+  const y1 = Math.min(drawStartY.value, currentY.value)
+  const w = Math.abs(currentX.value - drawStartX.value)
+  const h = Math.abs(currentY.value - drawStartY.value)
+  return `${x1 + w / 2},${y1} ${x1},${y1 + h} ${x1 + w},${y1 + h}`
+}
+
+function getDiamondPreviewPoints(): string {
+  if (drawStartX.value === null || drawStartY.value === null) return ''
+  const x1 = Math.min(drawStartX.value, currentX.value)
+  const y1 = Math.min(drawStartY.value, currentY.value)
+  const w = Math.abs(currentX.value - drawStartX.value)
+  const h = Math.abs(currentY.value - drawStartY.value)
+  return `${x1 + w / 2},${y1} ${x1 + w},${y1 + h / 2} ${x1 + w / 2},${y1 + h} ${x1},${y1 + h / 2}`
+}
+
 function getResizeHandles(element: CanvasElement): ResizeHandle[] {
   const bounds = getElementBounds(element)
   const x = bounds.x
@@ -671,15 +761,21 @@ function insertEmoji(emoji: string) {
   const newElement: CanvasElement = {
     id: generateId(),
     type: 'emoji',
-    x: 100,
-    y: 100,
+    x: 150,
+    y: 150,
     emoji: emoji,
     strokeColor: strokeColor.value,
     strokeWidth: strokeWidth.value,
-    fontSize: emojiSize.value
+    fontSize: emojiSize.value,
+    isSelected: true
   }
   
+  canvasData.value.elements.forEach(el => {
+    el.isSelected = false
+  })
+  
   canvasData.value.elements.push(newElement)
+  selectedElementIds.value = new Set([newElement.id])
   saveToHistory()
   showEmojiPicker.value = false
 }
@@ -712,16 +808,22 @@ function handleImageUpload(e: Event) {
       const newElement: CanvasElement = {
         id: generateId(),
         type: 'image',
-        x: 100,
-        y: 100,
+        x: 150,
+        y: 150,
         width,
         height,
         imageUrl: dataUrl,
         strokeColor: strokeColor.value,
-        strokeWidth: strokeWidth.value
+        strokeWidth: strokeWidth.value,
+        isSelected: true
       }
       
+      canvasData.value.elements.forEach(el => {
+        el.isSelected = false
+      })
+      
       canvasData.value.elements.push(newElement)
+      selectedElementIds.value = new Set([newElement.id])
       saveToHistory()
     }
     img.src = dataUrl
@@ -769,11 +871,19 @@ function handleMouseDown(e: MouseEvent) {
   }
   
   if (currentTool.value === 'select') {
-    const clickedElement = canvasData.value.elements.find(el => 
-      el.isSelected && isPointInElement(pos, el)
-    )
+    const clickedElement = canvasData.value.elements.find(el => isPointInElement(pos, el))
     
     if (clickedElement) {
+      if (!clickedElement.isSelected) {
+        if (!e.shiftKey) {
+          canvasData.value.elements.forEach(el => {
+            el.isSelected = false
+          })
+        }
+        clickedElement.isSelected = true
+        selectedElementIds.value = new Set(canvasData.value.elements.filter(el => el.isSelected).map(el => el.id))
+      }
+      
       isDragging.value = true
       dragElement.value = clickedElement
       dragStartX.value = pos.x
@@ -1024,6 +1134,34 @@ function handleMouseUp() {
       }
       canvasData.value.elements.push(newElement)
       saveToHistory()
+    } else if (tool === 'triangle') {
+      const newElement: CanvasElement = {
+        id: generateId(),
+        type: 'triangle',
+        x: Math.min(drawStartX.value, currentX.value),
+        y: Math.min(drawStartY.value, currentY.value),
+        width: Math.abs(currentX.value - drawStartX.value),
+        height: Math.abs(currentY.value - drawStartY.value),
+        strokeColor: strokeColor.value,
+        strokeWidth: strokeWidth.value,
+        fillColor: fillColor.value
+      }
+      canvasData.value.elements.push(newElement)
+      saveToHistory()
+    } else if (tool === 'diamond') {
+      const newElement: CanvasElement = {
+        id: generateId(),
+        type: 'diamond',
+        x: Math.min(drawStartX.value, currentX.value),
+        y: Math.min(drawStartY.value, currentY.value),
+        width: Math.abs(currentX.value - drawStartX.value),
+        height: Math.abs(currentY.value - drawStartY.value),
+        strokeColor: strokeColor.value,
+        strokeWidth: strokeWidth.value,
+        fillColor: fillColor.value
+      }
+      canvasData.value.elements.push(newElement)
+      saveToHistory()
     } else if (tool === 'line' || tool === 'arrow') {
       const newElement: CanvasElement = {
         id: generateId(),
@@ -1132,6 +1270,11 @@ function isPointInElement(point: { x: number; y: number }, element: CanvasElemen
            point.x <= (element.x || 0) + (element.width || 0) &&
            point.y >= (element.y || 0) &&
            point.y <= (element.y || 0) + (element.height || 0)
+  } else if (element.type === 'triangle' || element.type === 'diamond') {
+    return point.x >= (element.x || 0) &&
+           point.x <= (element.x || 0) + (element.width || 0) &&
+           point.y >= (element.y || 0) &&
+           point.y <= (element.y || 0) + (element.height || 0)
   }
   return false
 }
@@ -1179,7 +1322,7 @@ function isElementInRect(
       p.x >= rect.x1 && p.x <= rect.x2 &&
       p.y >= rect.y1 && p.y <= rect.y2
     )
-  } else if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'image') {
+  } else if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'triangle' || element.type === 'diamond' || element.type === 'image') {
     return (element.x || 0) >= rect.x1 &&
            (element.x || 0) + (element.width || 0) <= rect.x2 &&
            (element.y || 0) >= rect.y1 &&
@@ -1225,6 +1368,8 @@ function getToolLabel(tool: CanvasTool): string {
     pen: '画笔',
     rectangle: '矩形',
     circle: '圆形',
+    triangle: '三角形',
+    diamond: '菱形',
     line: '线条',
     arrow: '箭头',
     text: '文字',

@@ -131,8 +131,8 @@ export interface InteractiveTableProps {
 
 export type BlockType = 'text' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'bullet' | 'numbered' | 'todo' | 'code' | 'quote' | 'table' | 'divider' | 'canvas'
 
-export type CanvasTool = 'select' | 'pen' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'eraser'
-export type CanvasShapeType = 'pen' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'emoji' | 'image'
+export type CanvasTool = 'select' | 'pen' | 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'line' | 'arrow' | 'text' | 'eraser'
+export type CanvasShapeType = 'pen' | 'rectangle' | 'circle' | 'triangle' | 'diamond' | 'line' | 'arrow' | 'text' | 'emoji' | 'image'
 
 export interface CanvasPoint {
   x: number
