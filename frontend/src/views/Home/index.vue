@@ -263,10 +263,9 @@ async function handleCreateDocument() {
     return
   }
   
-  const timestamp = Date.now()
   const title = newType.value === 'document' 
-    ? `新建文档_${timestamp}`
-    : `新建表格_${timestamp}`
+    ? '未命名文档'
+    : '未命名表格'
   
   const content = newType.value === 'table' ? createTableContent() : ''
   
@@ -282,7 +281,7 @@ async function handleCreateDocument() {
     ElMessage.success(`${newType.value === 'document' ? '文档' : '表格'}创建成功`)
     showSelectKmDialog.value = false
     
-    router.push(`/workspace?kmId=${selectedKmId.value}&docId=${res.data.data.id}`)
+    router.push(`/workspace?kmId=${selectedKmId.value}&docId=${res.data.data.id}&newDoc=1`)
   } catch (error) {
     console.error('创建文档失败:', error)
     ElMessage.error('创建文档失败')
