@@ -42,6 +42,7 @@
           @input="handleContentInput(block.id, $event)"
           @keydown="handleKeyDown(block.id, $event)"
           @focus="handleBlockFocus(block.id)"
+          @paste="handlePaste(block.id, $event)"
           :data-block-id="block.id"
         ></div>
 
@@ -86,6 +87,7 @@ interface Emits {
   (e: 'slash-menu', blockId: string, e: MouseEvent): void
   (e: 'table-update', blockId: string, data: InteractiveTableData): void
   (e: 'todo-check', blockId: string, checked: boolean): void
+  (e: 'paste', blockId: string, e: ClipboardEvent): void
 }
 
 const props = defineProps<Props>()
@@ -141,6 +143,10 @@ function handleBlockClick(blockId: string, e: MouseEvent) {
 
 function handleBlockFocus(blockId: string) {
   emit('focus', blockId)
+}
+
+function handlePaste(blockId: string, e: ClipboardEvent) {
+  emit('paste', blockId, e)
 }
 </script>
 

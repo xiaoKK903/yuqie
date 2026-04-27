@@ -472,6 +472,348 @@ export function useBlockEditor(modelValue: Block[]) {
     activeBlockId.value = blockId
   }
 
+  function sanitizeHtml(html: string): string {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = html
+    
+    tempDiv.querySelectorAll('script, style, iframe, link, meta, noscript').forEach(el => el.remove())
+    tempDiv.querySelectorAll('*').forEach(el => {
+      const attrs = Array.from(el.attributes)
+      attrs.forEach(attr => {
+        if (attr.name.startsWith('on') || attr.name === 'style' || attr.name === 'class' || attr.name === 'id') {
+          el.removeAttribute(attr.name)
+        }
+      })
+    })
+    
+    return tempDiv.innerHTML
+  }
+
+  function parseHtmlToBlocks(html: string): Block[] {
+    const blocks: Block[] = []
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = sanitizeHtml(html)
+
+    function isTableCell(node: Node): boolean {
+      const parent = node.parentElement
+      return parent !== null && (parent.tagName === 'TD' || parent.tagName === 'TH')
+    }
+
+    function processNode(node: Node, listLevel: number = 0, listType: 'ul' | 'ol' | null = null) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent?.trim() || ''
+        if (text && !isTableCell(node)) {
+          const existingBlock = blocks[blocks.length - 1]
+          if (existingBlock && existingBlock.type === 'text' && listType === null) {
+            existingBlock.content += text
+          } else if (listType !== null) {
+          } else {
+            blocks.push(createBlock('text', text))
+          }
+        }
+        return
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return
+
+      const el = node as HTMLElement
+      const tagName = el.tagName.toLowerCase()
+
+      if (tagName === 'table') {
+        const tableBlock = parseTableToBlock(el)
+        if (tableBlock) {
+          blocks.push(tableBlock)
+        }
+        return
+      }
+
+      if (tagName === 'br') {
+        if (listType === null) {
+          const lastBlock = blocks[blocks.length - 1]
+          if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content) {
+            blocks.push(createBlock('text', ''))
+          }
+        }
+        return
+      }
+
+      if (tagName === 'p' || tagName === 'div') {
+        const text = el.textContent?.trim() || ''
+        if (text && !isTableCell(el)) {
+          blocks.push(createBlock('text', text))
+        } else if (!isTableCell(el)) {
+          const childrenText = Array.from(el.childNodes)
+            .filter(n => n.nodeType === Node.TEXT_NODE)
+            .map(n => n.textContent)
+            .join('')
+            .trim()
+          if (childrenText) {
+            blocks.push(createBlock('text', childrenText))
+          }
+        }
+        el.childNodes.forEach(child => processNode(child, listLevel, listType))
+        return
+      }
+
+      if (tagName === 'h1') {
+        blocks.push(createBlock('h1', el.textContent?.trim() || ''))
+        return
+      }
+      if (tagName === 'h2') {
+        blocks.push(createBlock('h2', el.textContent?.trim() || ''))
+        return
+      }
+      if (tagName === 'h3') {
+        blocks.push(createBlock('h3', el.textContent?.trim() || ''))
+        return
+      }
+      if (tagName === 'h4') {
+        blocks.push(createBlock('h4', el.textContent?.trim() || ''))
+        return
+      }
+      if (tagName === 'h5') {
+        blocks.push(createBlock('h5', el.textContent?.trim() || ''))
+        return
+      }
+      if (tagName === 'h6') {
+        blocks.push(createBlock('h6', el.textContent?.trim() || ''))
+        return
+      }
+
+      if (tagName === 'blockquote') {
+        blocks.push(createBlock('quote', el.textContent?.trim() || ''))
+        return
+      }
+
+      if (tagName === 'pre' || tagName === 'code') {
+        const text = el.textContent || ''
+        if (text.trim()) {
+          const codeBlock = createBlock('code', text)
+          codeBlock.meta = { language: 'plaintext' }
+          blocks.push(codeBlock)
+        }
+        return
+      }
+
+      if (tagName === 'hr') {
+        blocks.push(createBlock('divider'))
+        return
+      }
+
+      if (tagName === 'ul' || tagName === 'ol') {
+        const newListType: 'ul' | 'ol' = tagName === 'ul' ? 'ul' : 'ol'
+        el.querySelectorAll(':scope > li').forEach((li, index) => {
+          const liText = li.textContent?.trim() || ''
+          const blockType = newListType === 'ul' ? 'bullet' : 'numbered'
+          
+          const listBlock = createBlock(blockType, liText)
+          blocks.push(listBlock)
+          
+          li.querySelectorAll(':scope > ul, :scope > ol').forEach(nestedList => {
+            processNode(nestedList, listLevel + 1, newListType === 'ul' ? 'ul' : 'ol')
+          })
+        })
+        return
+      }
+
+      if (tagName === 'li') {
+        return
+      }
+
+      el.childNodes.forEach(child => processNode(child, listLevel, listType))
+    }
+
+    function parseTableToBlock(tableEl: HTMLElement): Block | null {
+      const rows = tableEl.querySelectorAll('tr')
+      if (rows.length === 0) return null
+
+      const colCount = Math.max(...Array.from(rows).map(row => {
+        const cells = row.querySelectorAll('td, th')
+        let count = 0
+        cells.forEach(cell => {
+          const colspan = parseInt(cell.getAttribute('colspan') || '1', 10)
+          count += colspan
+        })
+        return count
+      }))
+
+      const tableData = createDefaultTable(Math.min(colCount, 20), Math.min(rows.length, 50))
+      tableData.columns = []
+      tableData.rows = []
+      tableData.cells = []
+      tableData.mergeCells = []
+
+      for (let i = 0; i < colCount && i < 20; i++) {
+        tableData.columns.push({
+          id: `col_${i + 1}`,
+          width: 150,
+          fieldType: 'text',
+          title: `字段${i + 1}`,
+        })
+      }
+
+      for (let i = 0; i < rows.length && i < 50; i++) {
+        tableData.rows.push({
+          id: `row_${i + 1}`,
+          height: 40,
+        })
+      }
+
+      Array.from(rows).forEach((row, rowIndex) => {
+        if (rowIndex >= 50) return
+        const cells = row.querySelectorAll('td, th')
+        let colOffset = 0
+
+        cells.forEach((cell, cellIndex) => {
+          const cellEl = cell as HTMLElement
+          const colspan = parseInt(cellEl.getAttribute('colspan') || '1', 10)
+          const rowspan = parseInt(cellEl.getAttribute('rowspan') || '1', 10)
+          
+          const colIndex = colOffset
+          if (colIndex >= colCount || colIndex >= 20) {
+            colOffset += colspan
+            return
+          }
+
+          const rowId = `row_${rowIndex + 1}`
+          const colId = `col_${colIndex + 1}`
+
+          tableData.cells.push({
+            rowId,
+            colId,
+            value: cellEl.textContent?.trim() || '',
+          })
+
+          if (colspan > 1 || rowspan > 1) {
+            tableData.mergeCells.push({
+              rowId,
+              colId,
+              rowSpan: rowspan,
+              colSpan: colspan,
+            })
+          }
+
+          colOffset += colspan
+        })
+      })
+
+      const tableBlock = createBlock('table', '')
+      tableBlock.meta = { tableData }
+      return tableBlock
+    }
+
+    tempDiv.childNodes.forEach(node => processNode(node))
+
+    if (blocks.length === 0) {
+      const plainText = tempDiv.textContent?.trim() || ''
+      if (plainText) {
+        plainText.split('\n').forEach(line => {
+          if (line.trim()) {
+            blocks.push(createBlock('text', line.trim()))
+          }
+        })
+      }
+    }
+
+    return blocks
+  }
+
+  function handlePaste(blockId: string, e: ClipboardEvent) {
+    const clipboardData = e.clipboardData
+    if (!clipboardData) return
+
+    const htmlContent = clipboardData.getData('text/html')
+    const plainText = clipboardData.getData('text/plain')
+
+    if (!htmlContent && !plainText) return
+
+    e.preventDefault()
+
+    let pastedBlocks: Block[] = []
+
+    if (htmlContent) {
+      try {
+        pastedBlocks = parseHtmlToBlocks(htmlContent)
+      } catch (err) {
+        console.error('HTML 解析失败:', err)
+        if (plainText) {
+          plainText.split('\n').forEach(line => {
+            if (line.trim()) {
+              pastedBlocks.push(createBlock('text', line.trim()))
+            }
+          })
+        }
+      }
+    } else if (plainText) {
+      plainText.split('\n').forEach(line => {
+        if (line.trim()) {
+          pastedBlocks.push(createBlock('text', line.trim()))
+        }
+      })
+    }
+
+    if (pastedBlocks.length === 0) return
+
+    const blockIndex = blocks.value.findIndex(b => b.id === blockId)
+    if (blockIndex < 0) return
+
+    const currentBlock = blocks.value[blockIndex]
+    const selection = window.getSelection()
+    let cursorOffset = 0
+
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      const preRange = document.createRange()
+      const targetEl = e.target as HTMLElement
+      preRange.selectNodeContents(targetEl)
+      preRange.setEnd(range.startContainer, range.startOffset)
+      cursorOffset = preRange.toString().length
+    }
+
+    const currentContent = currentBlock.content || ''
+    const beforeText = currentContent.substring(0, cursorOffset)
+    const afterText = currentContent.substring(cursorOffset)
+
+    if (pastedBlocks.length === 1) {
+      const pastedBlock = pastedBlocks[0]
+      if (pastedBlock.type === 'text' && currentBlock.type === 'text') {
+        blocks.value[blockIndex].content = beforeText + pastedBlock.content + afterText
+      } else {
+        currentBlock.content = beforeText
+        
+        blocks.value.splice(blockIndex + 1, 0, pastedBlock)
+        
+        if (afterText.trim()) {
+          blocks.value.splice(blockIndex + 2, 0, createBlock(currentBlock.type, afterText))
+        }
+      }
+    } else {
+      if (beforeText.trim()) {
+        currentBlock.content = beforeText
+      } else {
+        blocks.value.splice(blockIndex, 1)
+      }
+
+      const insertIndex = beforeText.trim() ? blockIndex + 1 : blockIndex
+      blocks.value.splice(insertIndex, 0, ...pastedBlocks)
+
+      if (afterText.trim()) {
+        const afterInsertIndex = beforeText.trim() ? blockIndex + 1 + pastedBlocks.length : blockIndex + pastedBlocks.length
+        blocks.value.splice(afterInsertIndex, 0, createBlock('text', afterText))
+      }
+    }
+
+    nextTick(() => {
+      const allEditableEls = document.querySelectorAll('.editable-content')
+      const lastPastedIndex = blocks.value.length - 1
+      if (allEditableEls[lastPastedIndex]) {
+        const el = allEditableEls[lastPastedIndex] as HTMLElement
+        el.focus()
+        activeBlockId.value = blocks.value[lastPastedIndex].id
+      }
+    })
+  }
+
   return {
     blocks,
     activeBlockId,
@@ -505,5 +847,6 @@ export function useBlockEditor(modelValue: Block[]) {
     handleEditorClick,
     handleBlockClick,
     handleBlockFocus,
+    handlePaste,
   }
 }
