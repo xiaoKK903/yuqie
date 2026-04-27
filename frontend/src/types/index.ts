@@ -79,12 +79,23 @@ export interface TableMergeCell {
   colSpan: number
 }
 
+export interface TableSheet {
+  id: string
+  name: string
+  columns: TableColumn[]
+  rows: TableRow[]
+  cells: TableCell[]
+  mergeCells: TableMergeCell[]
+}
+
 export interface InteractiveTableData {
   id: string
   columns: TableColumn[]
   rows: TableRow[]
   cells: TableCell[]
   mergeCells: TableMergeCell[]
+  sheets?: TableSheet[]
+  activeSheetId?: string
 }
 
 export interface InteractiveTableProps {
