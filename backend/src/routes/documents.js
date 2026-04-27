@@ -133,7 +133,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const { id } = req.params
-    const { title, content, folderId, sort } = req.body
+    const { title, content, folderId, sort, kmId } = req.body
     
     const document = documentModel.getDocumentById(parseInt(id))
     if (!document) {
@@ -166,6 +166,9 @@ router.put('/:id', (req, res) => {
     if (sort !== undefined) {
       updates.sort = parseInt(sort)
     }
+    if (kmId !== undefined) {
+      updates.km_id = kmId === null ? null : parseInt(kmId)
+    }
     
     const updatedDocument = documentModel.updateDocument(parseInt(id), updates)
     
@@ -185,6 +188,7 @@ router.put('/:id', (req, res) => {
         title: updatedDocument.title,
         content: updatedDocument.content,
         folderId: updatedDocument.folder_id,
+        kmId: updatedDocument.km_id,
         sort: updatedDocument.sort,
         createdAt: updatedDocument.created_at,
         updatedAt: updatedDocument.updated_at,

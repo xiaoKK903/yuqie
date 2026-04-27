@@ -84,24 +84,38 @@
                 </el-icon>
               </span>
               <span class="node-label">{{ node.label }}</span>
-              
-              <div 
-                v-if="data.type !== 'document' || (data.type === 'document' && canMoveToDocument)" 
-                class="position-option"
-              >
-                <el-radio-group 
-                  v-if="selectedTarget?.id === data.id && selectedTarget?.type === data.type"
-                  v-model="positionMode"
-                  size="small"
-                  @click.stop
-                >
-                  <el-radio value="sibling">同级</el-radio>
-                  <el-radio value="child">子级</el-radio>
-                </el-radio-group>
-              </div>
             </div>
           </template>
         </el-tree>
+      </div>
+      
+      <div class="position-section" v-if="selectedTarget">
+        <div class="position-label">位置选择：</div>
+        <div class="position-options">
+          <el-radio-group v-model="positionMode" size="small">
+            <el-radio value="sibling">
+              同级
+              <span class="radio-hint" v-if="selectedTarget.type === 'folder'">（移动到该文件夹的同一层级）</span>
+              <span class="radio-hint" v-else>（移动到该文档的同一层级）</span>
+            </el-radio>
+            <el-radio value="child" v-if="selectedTarget.type === 'folder'">
+              子级
+              <span class="radio-hint">（移动到该文件夹内部）</span>
+            </el-radio>
+          </el-radio-group>
+        </div>
+      </div>
+      
+      <div class="position-section" v-else>
+        <div class="position-label">位置选择：</div>
+        <div class="position-options">
+          <el-radio-group v-model="positionMode" size="small">
+            <el-radio value="root">
+              根目录
+              <span class="radio-hint">（移动到当前知识库的根目录）</span>
+            </el-radio>
+          </el-radio-group>
+        </div>
       </div>
     </div>
     
@@ -159,10 +173,6 @@ const dialogTitle = computed(() => {
   return props.operation === 'move' ? '移动到...' : '复制到...'
 })
 
-const canMoveToDocument = computed(() => {
-  return props.sourceNode?.type === 'document'
-})
-
 const loading = ref(false)
 const kmList = ref<Km[]>([])
 const selectedKmId = ref<number | null>(null)
@@ -181,7 +191,7 @@ const treeProps = {
 }
 
 const selectedTarget = ref<TreeNode | null>(null)
-const positionMode = ref<'sibling' | 'child'>('child')
+const positionMode = ref<'sibling' | 'child' | 'root'>('root')
 
 function flattenTree(nodes: TreeNode[]): TreeNode[] {
   const result: TreeNode[] = []
@@ -238,12 +248,14 @@ function collectExpandedKeys(nodes: TreeNode[]) {
 function handleKmChange() {
   selectedFolderId.value = null
   selectedTarget.value = null
+  positionMode.value = 'root'
   loadCurrentTree()
 }
 
 function handleFolderChange() {
   if (selectedFolderId.value === null) {
     selectedTarget.value = null
+    positionMode.value = 'root'
   } else {
     const folder = folderList.value.find(f => f.id === selectedFolderId.value)
     if (folder) {
@@ -265,6 +277,8 @@ function handleNodeClick(data: TreeNode) {
   }
   
   selectedTarget.value = data
+  selectedFolderId.value = data.type === 'folder' ? data.id : null
+  
   if (data.type === 'folder') {
     positionMode.value = 'child'
   } else {
@@ -320,29 +334,18 @@ function handleCancel() {
 
 function handleClosed() {
   selectedTarget.value = null
-  positionMode.value = 'child'
+  positionMode.value = 'root'
   currentTreeData.value = []
 }
 
 async function handleConfirm() {
-  if (!selectedTarget.value && selectedFolderId.value === null) {
-    if (selectedKmId.value) {
-      emit('confirm', {
-        targetKmId: selectedKmId.value,
-        targetFolderId: null,
-        targetNodeId: null,
-        targetType: null,
-        position: 'inside',
-      })
-      visible.value = false
-      return
-    }
-    ElMessage.warning('请选择目标位置')
+  if (!selectedKmId.value) {
+    ElMessage.warning('请选择目标知识库')
     return
   }
   
   let targetKmId = selectedKmId.value
-  let targetFolderId = selectedFolderId.value
+  let targetFolderId: number | null = null
   let targetNodeId: number | null = null
   let targetType: 'folder' | 'document' | null = null
   let position: 'before' | 'after' | 'inside' = 'inside'
@@ -360,13 +363,12 @@ async function handleConfirm() {
         targetFolderId = selectedTarget.value.parentId
       }
     } else {
-      if (positionMode.value === 'child') {
-        ElMessage.warning('文档不能作为子级的容器')
-        return
-      }
       position = 'after'
       targetFolderId = selectedTarget.value.parentId
     }
+  } else {
+    targetFolderId = null
+    position = 'inside'
   }
   
   emit('confirm', {
@@ -382,6 +384,10 @@ async function handleConfirm() {
 
 watch(visible, async (val) => {
   if (val) {
+    selectedTarget.value = null
+    positionMode.value = 'root'
+    selectedFolderId.value = null
+    
     await loadKmList()
     if (kmList.value.length > 0) {
       selectedKmId.value = kmList.value[0].id
@@ -428,11 +434,12 @@ watch(visible, async (val) => {
   }
   
   .tree-container {
-    max-height: 400px;
+    max-height: 280px;
     overflow-y: auto;
     border: 1px solid #e4e7ed;
     border-radius: 4px;
     padding: 8px;
+    margin-bottom: 16px;
   }
   
   .custom-tree {
@@ -457,7 +464,7 @@ watch(visible, async (val) => {
     border-radius: 4px;
     
     &.is-selected {
-      background-color: rgba(64, 158, 255, 0.1);
+      background-color: rgba(64, 158, 255, 0.15);
     }
     
     .node-icon {
@@ -474,20 +481,37 @@ watch(visible, async (val) => {
       font-size: 13px;
       color: #303133;
     }
+  }
+  
+  .position-section {
+    padding: 12px 16px;
+    background-color: #f5f7fa;
+    border-radius: 4px;
     
-    .position-option {
-      display: flex;
-      align-items: center;
-      
+    .position-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #606266;
+      margin-bottom: 8px;
+    }
+    
+    .position-options {
       :deep(.el-radio-group) {
         .el-radio {
-          margin-right: 8px;
+          margin-right: 24px;
           
           .el-radio__label {
-            font-size: 12px;
-            padding-left: 4px;
+            font-size: 13px;
+            padding-left: 6px;
+            color: #303133;
           }
         }
+      }
+      
+      .radio-hint {
+        font-size: 12px;
+        color: #909399;
+        margin-left: 4px;
       }
     }
   }

@@ -1084,14 +1084,14 @@ async function handleMoveCopyConfirm(params: {
     } else {
       if (sourceNode.type === 'folder') {
         await folderApi.create({
-          name: sourceNode.name + ' (副本)',
+          name: sourceNode.name,
           parentId: params.targetFolderId,
           kmId: params.targetKmId || undefined,
         })
       } else {
         const doc = await documentApi.getById(sourceNode.id)
         await documentApi.create({
-          title: sourceNode.name + ' (副本)',
+          title: sourceNode.name,
           folderId: params.targetFolderId,
           kmId: params.targetKmId || undefined,
           content: doc.data.data.content || '',
