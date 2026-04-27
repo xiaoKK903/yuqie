@@ -472,56 +472,37 @@ export function useBlockEditor(modelValue: Block[]) {
     activeBlockId.value = blockId
   }
 
-  function sanitizeHtml(html: string): string {
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = html
-    
-    tempDiv.querySelectorAll('script, style, iframe, link, meta, noscript').forEach(el => el.remove())
-    tempDiv.querySelectorAll('*').forEach(el => {
-      const attrs = Array.from(el.attributes)
-      attrs.forEach(attr => {
-        if (attr.name.startsWith('on')) {
-          el.removeAttribute(attr.name)
-        }
-      })
-    })
-    
-    return tempDiv.innerHTML
-  }
-
-  function getDirectChildren(parent: HTMLElement, tagName: string): HTMLElement[] {
-    return Array.from(parent.children).filter(
-      child => child.tagName.toLowerCase() === tagName
-    ) as HTMLElement[]
-  }
-
-  function extractPlainText(node: Node): string {
-    const tempDiv = document.createElement('div')
-    const clone = node.cloneNode(true)
-    tempDiv.appendChild(clone)
-    
-    const brs = tempDiv.querySelectorAll('br')
-    brs.forEach(br => {
-      const textNode = document.createTextNode('\n')
-      br.parentNode?.replaceChild(textNode, br)
-    })
-    
-    return tempDiv.textContent || ''
-  }
-
   function parseHtmlToBlocks(html: string): Block[] {
     const blocks: Block[] = []
     const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = sanitizeHtml(html)
+    tempDiv.innerHTML = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                             .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                             .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
 
-    function processNode(node: Node, inTable: boolean = false) {
+    let textAccumulator = ''
+
+    function flushText() {
+      if (textAccumulator.trim()) {
+        const trimmed = textAccumulator.trim()
+        const lines = trimmed.split(/\r?\n|\r/).filter(l => l.trim())
+        lines.forEach(line => {
+          blocks.push(createBlock('text', line.trim()))
+        })
+        textAccumulator = ''
+      }
+    }
+
+    function accumulateText(text: string) {
+      if (text) {
+        textAccumulator += text
+      }
+    }
+
+    function processNode(node: Node, inTable: boolean = false, inListItem: boolean = false) {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || ''
-        if (text && text.trim() && !inTable) {
-          const lastBlock = blocks[blocks.length - 1]
-          if (lastBlock && lastBlock.type === 'text') {
-            lastBlock.content += text
-          }
+        if (text && !inTable) {
+          accumulateText(text)
         }
         return
       }
@@ -532,6 +513,7 @@ export function useBlockEditor(modelValue: Block[]) {
       const tagName = el.tagName.toLowerCase()
 
       if (tagName === 'table') {
+        flushText()
         const tableBlock = parseTableToBlock(el)
         if (tableBlock) {
           blocks.push(tableBlock)
@@ -544,6 +526,7 @@ export function useBlockEditor(modelValue: Block[]) {
       }
 
       if (tagName === 'h1') {
+        flushText()
         const text = el.textContent?.trim() || ''
         if (text) {
           blocks.push(createBlock('h1', text))
@@ -551,6 +534,7 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
       if (tagName === 'h2') {
+        flushText()
         const text = el.textContent?.trim() || ''
         if (text) {
           blocks.push(createBlock('h2', text))
@@ -558,6 +542,7 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
       if (tagName === 'h3') {
+        flushText()
         const text = el.textContent?.trim() || ''
         if (text) {
           blocks.push(createBlock('h3', text))
@@ -565,6 +550,7 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
       if (tagName === 'h4') {
+        flushText()
         const text = el.textContent?.trim() || ''
         if (text) {
           blocks.push(createBlock('h4', text))
@@ -572,6 +558,7 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
       if (tagName === 'h5') {
+        flushText()
         const text = el.textContent?.trim() || ''
         if (text) {
           blocks.push(createBlock('h5', text))
@@ -579,6 +566,7 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
       if (tagName === 'h6') {
+        flushText()
         const text = el.textContent?.trim() || ''
         if (text) {
           blocks.push(createBlock('h6', text))
@@ -587,6 +575,7 @@ export function useBlockEditor(modelValue: Block[]) {
       }
 
       if (tagName === 'blockquote') {
+        flushText()
         const text = el.textContent?.trim() || ''
         if (text) {
           blocks.push(createBlock('quote', text))
@@ -595,6 +584,7 @@ export function useBlockEditor(modelValue: Block[]) {
       }
 
       if (tagName === 'pre') {
+        flushText()
         const text = el.textContent || ''
         if (text) {
           const codeBlock = createBlock('code', text)
@@ -605,58 +595,78 @@ export function useBlockEditor(modelValue: Block[]) {
       }
 
       if (tagName === 'hr') {
+        flushText()
         blocks.push(createBlock('divider'))
         return
       }
 
       if (tagName === 'ul') {
-        const lis = getDirectChildren(el, 'li')
+        flushText()
+        const lis = Array.from(el.children).filter(c => c.tagName.toLowerCase() === 'li') as HTMLElement[]
         lis.forEach(li => {
-          const liText = li.textContent?.trim() || ''
-          if (liText) {
-            blocks.push(createBlock('bullet', liText))
-          }
-          
-          const nestedUls = getDirectChildren(li, 'ul')
-          const nestedOls = getDirectChildren(li, 'ol')
-          nestedUls.forEach(nested => processNode(nested, inTable))
-          nestedOls.forEach(nested => processNode(nested, inTable))
+          processListItem(li, 'bullet')
         })
         return
       }
 
       if (tagName === 'ol') {
-        const lis = getDirectChildren(el, 'li')
+        flushText()
+        const lis = Array.from(el.children).filter(c => c.tagName.toLowerCase() === 'li') as HTMLElement[]
         lis.forEach(li => {
-          const liText = li.textContent?.trim() || ''
-          if (liText) {
-            blocks.push(createBlock('numbered', liText))
-          }
-          
-          const nestedUls = getDirectChildren(li, 'ul')
-          const nestedOls = getDirectChildren(li, 'ol')
-          nestedUls.forEach(nested => processNode(nested, inTable))
-          nestedOls.forEach(nested => processNode(nested, inTable))
+          processListItem(li, 'numbered')
         })
         return
       }
 
-      if (tagName === 'p' || tagName === 'div') {
-        const text = extractPlainText(el).trim()
-        if (text) {
-          const lines = text.split('\n').filter(l => l.trim())
-          if (lines.length === 1) {
-            blocks.push(createBlock('text', lines[0]))
-          } else {
-            lines.forEach(line => {
-              blocks.push(createBlock('text', line.trim()))
-            })
+      function processListItem(li: HTMLElement, blockType: 'bullet' | 'numbered') {
+        const nestedLists: HTMLElement[] = []
+        let directText = ''
+
+        Array.from(li.childNodes).forEach(child => {
+          if (child.nodeType === Node.ELEMENT_NODE) {
+            const childEl = child as HTMLElement
+            const childTag = childEl.tagName.toLowerCase()
+            if (childTag === 'ul' || childTag === 'ol') {
+              nestedLists.push(childEl)
+            } else {
+              const childText = childEl.textContent || ''
+              directText += childText
+            }
+          } else if (child.nodeType === Node.TEXT_NODE) {
+            directText += child.textContent || ''
           }
+        })
+
+        const trimmedText = directText.trim()
+        if (trimmedText) {
+          blocks.push(createBlock(blockType, trimmedText))
         }
+
+        nestedLists.forEach(nestedList => {
+          const nestedTag = nestedList.tagName.toLowerCase()
+          const nestedLis = Array.from(nestedList.children).filter(c => c.tagName.toLowerCase() === 'li') as HTMLElement[]
+          const nestedType = nestedTag === 'ul' ? 'bullet' : 'numbered'
+          nestedLis.forEach(nestedLi => {
+            processListItem(nestedLi, nestedType)
+          })
+        })
+      }
+
+      if (tagName === 'p' || tagName === 'div') {
+        flushText()
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          const lines = text.split(/\r?\n|\r/).filter(l => l.trim())
+          lines.forEach(line => {
+            blocks.push(createBlock('text', line.trim()))
+          })
+        }
+        el.childNodes.forEach(child => processNode(child, inTable, inListItem))
         return
       }
 
       if (tagName === 'br') {
+        accumulateText('\n')
         return
       }
 
@@ -666,31 +676,28 @@ export function useBlockEditor(modelValue: Block[]) {
 
       if (tagName === 'span' || tagName === 'strong' || tagName === 'b' || 
           tagName === 'em' || tagName === 'i' || tagName === 'u' ||
-          tagName === 'a' || tagName === 'font' || tagName === 'mark') {
-        const text = el.textContent?.trim() || ''
+          tagName === 'a' || tagName === 'font' || tagName === 'mark' ||
+          tagName === 'sub' || tagName === 'sup' || tagName === 'del' ||
+          tagName === 'ins' || tagName === 'code') {
+        const text = el.textContent || ''
         if (text) {
-          const lastBlock = blocks[blocks.length - 1]
-          if (lastBlock && lastBlock.type === 'text') {
-            lastBlock.content += text
-          }
+          accumulateText(text)
         }
-        el.childNodes.forEach(child => processNode(child, inTable))
+        el.childNodes.forEach(child => processNode(child, inTable, inListItem))
         return
       }
 
-      if (tagName.startsWith('o:') || tagName.startsWith('w:')) {
-        const text = el.textContent?.trim() || ''
+      if (tagName.startsWith('o:') || tagName.startsWith('w:') || 
+          tagName === 'office:word' || tagName === 'm:') {
+        const text = el.textContent || ''
         if (text) {
-          const lastBlock = blocks[blocks.length - 1]
-          if (lastBlock && lastBlock.type === 'text') {
-            lastBlock.content += text
-          }
+          accumulateText(text)
         }
-        el.childNodes.forEach(child => processNode(child, inTable))
+        el.childNodes.forEach(child => processNode(child, inTable, inListItem))
         return
       }
 
-      el.childNodes.forEach(child => processNode(child, inTable))
+      el.childNodes.forEach(child => processNode(child, inTable, inListItem))
     }
 
     function parseTableToBlock(tableEl: HTMLElement): Block | null {
@@ -773,6 +780,7 @@ export function useBlockEditor(modelValue: Block[]) {
     }
 
     tempDiv.childNodes.forEach(node => processNode(node))
+    flushText()
 
     if (blocks.length === 0) {
       const plainText = tempDiv.textContent?.trim() || ''
