@@ -654,9 +654,18 @@ function handleMouseUp() {
 }
 
 function handleElementClick(element: CanvasElement, e: MouseEvent) {
+  e.stopPropagation()
+  
+  if (currentTool.value === 'eraser') {
+    const index = canvasData.value.elements.findIndex(el => el.id === element.id)
+    if (index !== -1) {
+      canvasData.value.elements.splice(index, 1)
+      saveToHistory()
+    }
+    return
+  }
+  
   if (currentTool.value === 'select') {
-    e.stopPropagation()
-    
     if (e.shiftKey) {
       if (selectedElementIds.value.has(element.id)) {
         selectedElementIds.value.delete(element.id)
@@ -671,23 +680,17 @@ function handleElementClick(element: CanvasElement, e: MouseEvent) {
       })
       selectedElementIds.value = new Set([element.id])
     }
+  }
+  
+  if (element.type === 'text') {
+    editingTextElement.value = element
+    editingText.value = element.text || ''
+    isEditingText.value = true
     
-    if (element.type === 'text') {
-      editingTextElement.value = element
-      editingText.value = element.text || ''
-      isEditingText.value = true
-      
-      nextTick(() => {
-        textInputRef.value?.focus()
-        textInputRef.value?.select()
-      })
-    }
-  } else if (currentTool.value === 'eraser') {
-    const index = canvasData.value.elements.findIndex(el => el.id === element.id)
-    if (index !== -1) {
-      canvasData.value.elements.splice(index, 1)
-      saveToHistory()
-    }
+    nextTick(() => {
+      textInputRef.value?.focus()
+      textInputRef.value?.select()
+    })
   }
 }
 
@@ -721,7 +724,11 @@ function isPointInElement(point: { x: number; y: number }, element: CanvasElemen
     )
     return dist < (element.strokeWidth || 2) + 5
   } else if (element.type === 'text') {
-    const textWidth = (element.text?.length || 0) * (element.fontSize || 16) * 0.6
+    const minWidth = 100
+    const textWidth = Math.max(
+      minWidth,
+      (element.text?.length || 0) * (element.fontSize || 16) * 0.6
+    )
     return point.x >= (element.x || 0) &&
            point.x <= (element.x || 0) + textWidth &&
            point.y >= (element.y || 0) - (element.fontSize || 16) &&
@@ -803,15 +810,9 @@ function isElementInRect(
 
 function handleTextEditBlur() {
   if (editingTextElement.value) {
-    if (editingText.value.trim()) {
+    if (editingTextElement.value.text !== editingText.value) {
       editingTextElement.value.text = editingText.value
       saveToHistory()
-    } else {
-      const index = canvasData.value.elements.findIndex(el => el.id === editingTextElement.value?.id)
-      if (index !== -1) {
-        canvasData.value.elements.splice(index, 1)
-        saveToHistory()
-      }
     }
   }
   isEditingText.value = false
