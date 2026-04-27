@@ -109,7 +109,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const { id } = req.params
-    const { name, parentId, sort } = req.body
+    const { name, parentId, sort, kmId } = req.body
     
     const folder = folderModel.getFolderById(parseInt(id))
     if (!folder) {
@@ -146,6 +146,9 @@ router.put('/:id', (req, res) => {
     if (sort !== undefined) {
       updates.sort = parseInt(sort)
     }
+    if (kmId !== undefined) {
+      updates.km_id = kmId === null ? null : parseInt(kmId)
+    }
     
     const updatedFolder = folderModel.updateFolder(parseInt(id), updates)
     
@@ -155,6 +158,7 @@ router.put('/:id', (req, res) => {
         id: updatedFolder.id,
         name: updatedFolder.name,
         parentId: updatedFolder.parent_id,
+        kmId: updatedFolder.km_id,
         sort: updatedFolder.sort,
         createdAt: updatedFolder.created_at,
         updatedAt: updatedFolder.updated_at,

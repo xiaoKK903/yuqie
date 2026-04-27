@@ -386,6 +386,7 @@ function isDescendant(folderId: number, ancestorId: number): boolean {
   .el-icon {
     font-size: 14px;
     color: #909399;
+    transform: rotate(90deg);
   }
   
   &:hover {
