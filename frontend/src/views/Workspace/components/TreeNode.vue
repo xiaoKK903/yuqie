@@ -47,6 +47,13 @@
       <div class="tree-node-label">
         {{ node.name }}
       </div>
+      <div 
+        class="tree-node-more" 
+        @click.stop="handleMoreClick"
+        @contextmenu.stop.prevent
+      >
+        <el-icon><MoreFilled /></el-icon>
+      </div>
     </div>
     
     <div
@@ -62,6 +69,7 @@
         @toggle="handleChildToggle"
         @contextmenu="handleChildContextMenu"
         @drop="handleChildDrop"
+        @more="handleChildMore"
       />
     </div>
   </div>
@@ -74,6 +82,7 @@ import {
   Folder,
   FolderOpened,
   Document,
+  MoreFilled,
 } from '@element-plus/icons-vue'
 import type { TreeNode } from '@/types'
 
@@ -86,6 +95,7 @@ const emit = defineEmits<{
   select: [node: TreeNode]
   toggle: [node: TreeNode]
   contextmenu: [e: MouseEvent, node: TreeNode]
+  more: [e: MouseEvent, node: TreeNode]
   drop: [params: {
     sourceId: number
     sourceType: 'folder' | 'document'
@@ -137,6 +147,14 @@ function handleChildToggle(node: TreeNode) {
 
 function handleChildContextMenu(payload: { e: MouseEvent; node: TreeNode }) {
   emit('contextmenu', payload)
+}
+
+function handleMoreClick(e: MouseEvent) {
+  emit('more', { e, node: props.node })
+}
+
+function handleChildMore(payload: { e: MouseEvent; node: TreeNode }) {
+  emit('more', payload)
 }
 
 function handleChildDrop(params: {
@@ -353,6 +371,35 @@ function isDescendant(folderId: number, ancestorId: number): boolean {
   font-size: 13px;
   color: #303133;
   margin-left: 4px;
+}
+
+.tree-node-more {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+  
+  .el-icon {
+    font-size: 14px;
+    color: #909399;
+  }
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+    
+    .el-icon {
+      color: #606266;
+    }
+  }
+}
+
+.tree-node-content:hover .tree-node-more {
+  opacity: 1;
 }
 
 .tree-node-children {

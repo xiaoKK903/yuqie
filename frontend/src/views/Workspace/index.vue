@@ -36,6 +36,7 @@
             @select="handleNodeSelect"
             @toggle="handleToggle"
             @contextmenu="handleContextMenu"
+            @more="handleMoreClick"
             @drop="handleDrop"
           />
         </template>
@@ -307,6 +308,15 @@
     @add-document="handleAddDocument"
     @rename="handleRename"
     @delete="handleDelete"
+    @move="handleMove"
+    @copy="handleCopy"
+  />
+  
+  <MoveCopyDialog
+    v-model="moveCopyDialog.visible"
+    :operation="moveCopyDialog.operation"
+    :source-node="moveCopyDialog.sourceNode"
+    @confirm="handleMoveCopyConfirm"
   />
   
   <SlashMenu
@@ -374,6 +384,7 @@ import { folderApi, documentApi, treeApi, versionApi } from '@/api'
 import type { TreeNode as TreeNodeType, InteractiveTableData, Block, BlockType, SaveStatus, DocumentVersion } from '@/types'
 import TreeNode from './components/TreeNode.vue'
 import ContextMenu from './components/ContextMenu.vue'
+import MoveCopyDialog from './components/MoveCopyDialog.vue'
 import SlashMenu from './components/SlashMenu.vue'
 import InteractiveTable from './components/InteractiveTable.vue'
 import BlockEditor from './components/BlockEditor.vue'
@@ -439,6 +450,12 @@ const contextMenu = ref({
   y: 0,
   node: null as TreeNodeType | null,
   isRoot: false,
+})
+
+const moveCopyDialog = ref({
+  visible: false,
+  operation: 'move' as 'move' | 'copy',
+  sourceNode: null as TreeNodeType | null,
 })
 
 const slashMenuVisible = ref(false)
@@ -998,6 +1015,95 @@ async function handleDelete(node: TreeNodeType) {
     ElMessage.success('删除成功')
   } catch {
     // 用户取消
+  }
+}
+
+function handleMoreClick({ e, node }: { e: MouseEvent; node: TreeNodeType }) {
+  contextMenu.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    node,
+    isRoot: false,
+  }
+}
+
+function handleMove(node: TreeNodeType) {
+  moveCopyDialog.value = {
+    visible: true,
+    operation: 'move',
+    sourceNode: node,
+  }
+}
+
+function handleCopy(node: TreeNodeType) {
+  moveCopyDialog.value = {
+    visible: true,
+    operation: 'copy',
+    sourceNode: node,
+  }
+}
+
+async function handleMoveCopyConfirm(params: {
+  targetKmId: number | null
+  targetFolderId: number | null
+  targetNodeId: number | null
+  targetType: 'folder' | 'document' | null
+  position: 'before' | 'after' | 'inside'
+}) {
+  const sourceNode = moveCopyDialog.value.sourceNode
+  if (!sourceNode) return
+  
+  const operation = moveCopyDialog.value.operation
+  
+  try {
+    if (operation === 'move') {
+      if (sourceNode.type === 'folder') {
+        await folderApi.update(sourceNode.id, {
+          parentId: params.targetFolderId,
+          kmId: params.targetKmId || undefined,
+        })
+      } else {
+        await documentApi.update(sourceNode.id, {
+          folderId: params.targetFolderId,
+          kmId: params.targetKmId || undefined,
+        })
+      }
+      
+      if (params.targetNodeId !== null && params.position !== 'inside') {
+        await treeApi.moveNode({
+          sourceId: sourceNode.id,
+          sourceType: sourceNode.type,
+          targetId: params.targetNodeId,
+          targetType: params.targetType,
+          position: params.position,
+        })
+      }
+      
+      ElMessage.success('移动成功')
+    } else {
+      if (sourceNode.type === 'folder') {
+        await folderApi.create({
+          name: sourceNode.name + ' (副本)',
+          parentId: params.targetFolderId,
+          kmId: params.targetKmId || undefined,
+        })
+      } else {
+        const doc = await documentApi.getById(sourceNode.id)
+        await documentApi.create({
+          title: sourceNode.name + ' (副本)',
+          folderId: params.targetFolderId,
+          kmId: params.targetKmId || undefined,
+          content: doc.data.data.content || '',
+        })
+      }
+      
+      ElMessage.success('复制成功')
+    }
+    
+    await fetchTree()
+  } catch (error: any) {
+    ElMessage.error(error.message || `${operation === 'move' ? '移动' : '复制'}失败`)
   }
 }
 

@@ -41,6 +41,26 @@
         
         <div
           v-if="node"
+          class="context-menu-item"
+          @click="handleMove"
+        >
+          <el-icon><Promotion /></el-icon>
+          <span>移动到...</span>
+        </div>
+        
+        <div
+          v-if="node"
+          class="context-menu-item"
+          @click="handleCopy"
+        >
+          <el-icon><CopyDocument /></el-icon>
+          <span>复制到...</span>
+        </div>
+        
+        <div v-if="node" class="context-menu-divider"></div>
+        
+        <div
+          v-if="node"
           class="context-menu-item is-danger"
           @click="handleDelete"
         >
@@ -59,6 +79,8 @@ import {
   DocumentAdd,
   Edit,
   Delete,
+  Promotion,
+  CopyDocument,
 } from '@element-plus/icons-vue'
 import type { TreeNode } from '@/types'
 
@@ -82,6 +104,8 @@ const emit = defineEmits<{
   'add-document': [parentNode: TreeNode | null]
   'rename': [node: TreeNode]
   'delete': [node: TreeNode]
+  'move': [node: TreeNode]
+  'copy': [node: TreeNode]
 }>()
 
 const visible = computed({
@@ -143,6 +167,20 @@ function handleAddDocument() {
 function handleRename() {
   if (props.node) {
     emit('rename', props.node)
+  }
+  handleClose()
+}
+
+function handleMove() {
+  if (props.node) {
+    emit('move', props.node)
+  }
+  handleClose()
+}
+
+function handleCopy() {
+  if (props.node) {
+    emit('copy', props.node)
   }
   handleClose()
 }
