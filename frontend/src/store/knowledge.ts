@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TreeNode, Document } from '@/types'
-import { treeApi, documentApi } from '@/api'
+import type { TreeNode, Document, Km } from '@/types'
+import { treeApi, documentApi, kmApi } from '@/api'
 
 export const useKnowledgeStore = defineStore('knowledge', () => {
   const treeData = ref<TreeNode[]>([])
   const activeNode = ref<TreeNode | null>(null)
   const currentDocument = ref<Document | null>(null)
   const loading = ref(false)
+  const currentKmId = ref<number | null>(null)
+  const currentKm = ref<Km | null>(null)
 
   const expandedNodes = computed(() => {
     const getExpandedIds = (nodes: TreeNode[]): number[] => {
@@ -25,14 +27,28 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     return getExpandedIds(treeData.value)
   })
 
-  async function fetchTree() {
+  async function fetchTree(kmId?: number | null) {
+    if (kmId !== undefined) {
+      currentKmId.value = kmId
+    }
+    
     loading.value = true
     try {
-      const res = await treeApi.getTree()
+      const res = await treeApi.getTree(currentKmId.value)
       treeData.value = res.data.data
       restoreExpandedState(treeData.value, expandedNodes.value)
     } finally {
       loading.value = false
+    }
+  }
+
+  async function fetchKmInfo(kmId: number) {
+    try {
+      const res = await kmApi.getAll()
+      const kms = res.data.data || []
+      currentKm.value = kms.find(km => km.id === kmId) || null
+    } catch (error) {
+      console.error('获取知识库信息失败:', error)
     }
   }
 
@@ -105,8 +121,11 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     activeNode,
     currentDocument,
     loading,
+    currentKmId,
+    currentKm,
     expandedNodes,
     fetchTree,
+    fetchKmInfo,
     setActiveNode,
     findNodeById,
     toggleExpand,

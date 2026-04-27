@@ -6,6 +6,17 @@ const getAllDocuments = () => {
   return result
 }
 
+const getDocumentsByKmId = (kmId) => {
+  if (kmId === null || kmId === undefined) {
+    const result = all('SELECT * FROM documents WHERE km_id IS NULL ORDER BY sort, id')
+    console.log('[getDocumentsByKmId] kmId: null, 结果:', result)
+    return result
+  }
+  const result = all('SELECT * FROM documents WHERE km_id = ? ORDER BY sort, id', [kmId])
+  console.log('[getDocumentsByKmId] kmId:', kmId, '结果:', result)
+  return result
+}
+
 const getDocumentById = (id) => {
   const result = get('SELECT * FROM documents WHERE id = ?', [id])
   console.log('[getDocumentById] id:', id, '结果:', result)
@@ -23,15 +34,21 @@ const getDocumentsByFolderId = (folderId) => {
   return result
 }
 
-const createDocument = (title, folderId, content = '') => {
+const createDocument = (title, folderId, content = '', kmId) => {
   const folderIdValue = folderId === null || folderId === undefined ? null : folderId
+  const kmIdValue = kmId === null || kmId === undefined ? null : kmId
   
-  console.log('[createDocument] title:', title, 'folderId:', folderIdValue, 'content:', content.substring(0, 50))
+  console.log('[createDocument] title:', title, 'folderId:', folderIdValue, 'kmId:', kmIdValue, 'content:', content.substring(0, 50))
   
   let maxSort = -1
   if (folderIdValue === null) {
-    const maxSortResult = get('SELECT MAX(sort) as max_sort FROM documents WHERE folder_id IS NULL')
-    maxSort = maxSortResult?.max_sort ?? -1
+    if (kmIdValue === null) {
+      const maxSortResult = get('SELECT MAX(sort) as max_sort FROM documents WHERE folder_id IS NULL AND km_id IS NULL')
+      maxSort = maxSortResult?.max_sort ?? -1
+    } else {
+      const maxSortResult = get('SELECT MAX(sort) as max_sort FROM documents WHERE folder_id IS NULL AND km_id = ?', [kmIdValue])
+      maxSort = maxSortResult?.max_sort ?? -1
+    }
   } else {
     const maxSortResult = get('SELECT MAX(sort) as max_sort FROM documents WHERE folder_id = ?', [folderIdValue])
     maxSort = maxSortResult?.max_sort ?? -1
@@ -44,8 +61,8 @@ const createDocument = (title, folderId, content = '') => {
   
   const newDoc = insertAndGetId(
     'documents',
-    'INSERT INTO documents (title, folder_id, content, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-    [title, folderIdValue, content, sort, now, now]
+    'INSERT INTO documents (title, folder_id, km_id, content, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [title, folderIdValue, kmIdValue, content, sort, now, now]
   )
   
   console.log('[createDocument] 新创建的文档:', newDoc)
@@ -55,7 +72,7 @@ const createDocument = (title, folderId, content = '') => {
 const updateDocument = (id, updates) => {
   console.log('[updateDocument] id:', id, 'updates:', updates)
   
-  const allowedFields = ['title', 'content', 'folder_id', 'sort']
+  const allowedFields = ['title', 'content', 'folder_id', 'km_id', 'sort']
   const setClauses = []
   const values = []
   
@@ -95,6 +112,7 @@ const updateSortValues = (folderId) => {
 
 export const documentModel = {
   getAllDocuments,
+  getDocumentsByKmId,
   getDocumentById,
   getDocumentsByFolderId,
   createDocument,

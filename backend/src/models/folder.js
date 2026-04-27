@@ -6,6 +6,17 @@ const getAllFolders = () => {
   return result
 }
 
+const getFoldersByKmId = (kmId) => {
+  if (kmId === null || kmId === undefined) {
+    const result = all('SELECT * FROM folders WHERE km_id IS NULL ORDER BY sort, id')
+    console.log('[getFoldersByKmId] kmId: null, 结果:', result)
+    return result
+  }
+  const result = all('SELECT * FROM folders WHERE km_id = ? ORDER BY sort, id', [kmId])
+  console.log('[getFoldersByKmId] kmId:', kmId, '结果:', result)
+  return result
+}
+
 const getFolderById = (id) => {
   const result = get('SELECT * FROM folders WHERE id = ?', [id])
   console.log('[getFolderById] id:', id, '结果:', result)
@@ -23,15 +34,21 @@ const getFoldersByParentId = (parentId) => {
   return result
 }
 
-const createFolder = (name, parentId) => {
+const createFolder = (name, parentId, kmId) => {
   const parentIdValue = parentId === null || parentId === undefined ? null : parentId
+  const kmIdValue = kmId === null || kmId === undefined ? null : kmId
   
-  console.log('[createFolder] name:', name, 'parentId:', parentIdValue)
+  console.log('[createFolder] name:', name, 'parentId:', parentIdValue, 'kmId:', kmIdValue)
   
   let maxSort = -1
   if (parentIdValue === null) {
-    const maxSortResult = get('SELECT MAX(sort) as max_sort FROM folders WHERE parent_id IS NULL')
-    maxSort = maxSortResult?.max_sort ?? -1
+    if (kmIdValue === null) {
+      const maxSortResult = get('SELECT MAX(sort) as max_sort FROM folders WHERE parent_id IS NULL AND km_id IS NULL')
+      maxSort = maxSortResult?.max_sort ?? -1
+    } else {
+      const maxSortResult = get('SELECT MAX(sort) as max_sort FROM folders WHERE parent_id IS NULL AND km_id = ?', [kmIdValue])
+      maxSort = maxSortResult?.max_sort ?? -1
+    }
   } else {
     const maxSortResult = get('SELECT MAX(sort) as max_sort FROM folders WHERE parent_id = ?', [parentIdValue])
     maxSort = maxSortResult?.max_sort ?? -1
@@ -44,8 +61,8 @@ const createFolder = (name, parentId) => {
   
   const newFolder = insertAndGetId(
     'folders',
-    'INSERT INTO folders (name, parent_id, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-    [name, parentIdValue, sort, now, now]
+    'INSERT INTO folders (name, parent_id, km_id, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [name, parentIdValue, kmIdValue, sort, now, now]
   )
   
   console.log('[createFolder] 新创建的文件夹:', newFolder)
@@ -55,7 +72,7 @@ const createFolder = (name, parentId) => {
 const updateFolder = (id, updates) => {
   console.log('[updateFolder] id:', id, 'updates:', updates)
   
-  const allowedFields = ['name', 'parent_id', 'sort']
+  const allowedFields = ['name', 'parent_id', 'km_id', 'sort']
   const setClauses = []
   const values = []
   
@@ -131,6 +148,7 @@ const updateSortValues = (parentId) => {
 
 export const folderModel = {
   getAllFolders,
+  getFoldersByKmId,
   getFolderById,
   getFoldersByParentId,
   createFolder,

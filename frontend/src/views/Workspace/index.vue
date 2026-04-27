@@ -1,6 +1,14 @@
 <template>
   <div class="workspace-layout">
     <div class="sidebar">
+      <div class="sidebar-top">
+        <div class="back-btn" @click="router.push('/')" title="返回首页">
+          <el-icon><ArrowLeft /></el-icon>
+        </div>
+        <div class="km-title" v-if="currentKm">
+          {{ currentKm.name }}
+        </div>
+      </div>
       <div class="sidebar-header">
         <el-input
           v-model="searchKeyword"
@@ -339,6 +347,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -357,6 +366,7 @@ import {
   Check,
   CircleClose,
   Warning,
+  Plus,
 } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -395,8 +405,11 @@ const md = new MarkdownIt({
 })
 
 const store = useKnowledgeStore()
-const { treeData, currentDocument, loading, activeNode } = storeToRefs(store)
-const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode } = store
+const { treeData, currentDocument, loading, activeNode, currentKm, currentKmId } = storeToRefs(store)
+const { fetchTree, loadDocument, saveDocument, getAllNodes, toggleExpand, setActiveNode, fetchKmInfo } = store
+
+const router = useRouter()
+const route = useRoute()
 
 const editorRef = ref<HTMLTextAreaElement | null>(null)
 const blockEditorRef = ref<InstanceType<typeof BlockEditor> | null>(null)
@@ -816,11 +829,12 @@ async function handleAddFolder(parentNode: TreeNodeType | null) {
       inputErrorMessage: '文件夹名称不能为空',
     })
     
-    console.log('[handleAddFolder] 创建文件夹, name:', name, 'parentId:', parentNode ? parentNode.id : null)
+    console.log('[handleAddFolder] 创建文件夹, name:', name, 'parentId:', parentNode ? parentNode.id : null, 'kmId:', currentKmId.value)
     
     await folderApi.create({
       name,
       parentId: parentNode ? parentNode.id : null,
+      kmId: parentNode ? undefined : (currentKmId.value || null),
     })
     
     await fetchTree()
@@ -829,7 +843,6 @@ async function handleAddFolder(parentNode: TreeNodeType | null) {
     }
     ElMessage.success('文件夹创建成功')
   } catch {
-    // 用户取消
   }
 }
 
@@ -843,11 +856,12 @@ async function handleAddDocument(parentNode: TreeNodeType | null) {
       inputErrorMessage: '文档名称不能为空',
     })
     
-    console.log('[handleAddDocument] 创建文档, title:', title, 'folderId:', parentNode ? parentNode.id : null)
+    console.log('[handleAddDocument] 创建文档, title:', title, 'folderId:', parentNode ? parentNode.id : null, 'kmId:', currentKmId.value)
     
     const res = await documentApi.create({
       title,
       folderId: parentNode ? parentNode.id : null,
+      kmId: parentNode ? undefined : (currentKmId.value || null),
       content: '',
     })
     
@@ -863,7 +877,6 @@ async function handleAddDocument(parentNode: TreeNodeType | null) {
     
     ElMessage.success('文档创建成功')
   } catch {
-    // 用户取消
   }
 }
 
@@ -1647,7 +1660,18 @@ function updateFormatState() {
 }
 
 onMounted(() => {
-  fetchTree()
+  const kmIdParam = route.query.kmId
+  if (kmIdParam && kmIdParam !== '') {
+    const kmId = parseInt(kmIdParam as string)
+    if (!isNaN(kmId)) {
+      fetchTree(kmId)
+      fetchKmInfo(kmId)
+    } else {
+      fetchTree()
+    }
+  } else {
+    fetchTree()
+  }
   
   document.addEventListener('mouseup', updateFormatState)
   document.addEventListener('keyup', updateFormatState)
@@ -1676,6 +1700,41 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background-color: #fafafa;
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e4e7ed;
+  background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+}
+
+.back-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #fff;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+.km-title {
+  flex: 1;
+  margin-left: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-header {
