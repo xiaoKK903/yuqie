@@ -993,7 +993,7 @@ function handleMouseMove(e: MouseEvent) {
     const el = resizeElement.value
     const handle = resizeHandleType.value
     
-    if (el.type === 'rectangle' || el.type === 'circle' || el.type === 'image') {
+    if (el.type === 'rectangle' || el.type === 'circle' || el.type === 'image' || el.type === 'triangle' || el.type === 'diamond') {
       let newX = resizeElementStartX.value
       let newY = resizeElementStartY.value
       let newWidth = resizeElementStartWidth.value
@@ -1187,6 +1187,8 @@ function handleMouseUp() {
 function handleElementClick(element: CanvasElement, e: MouseEvent) {
   e.stopPropagation()
   
+  const pos = getMousePos(e)
+  
   if (currentTool.value === 'eraser') {
     const index = canvasData.value.elements.findIndex(el => el.id === element.id)
     if (index !== -1) {
@@ -1210,6 +1212,20 @@ function handleElementClick(element: CanvasElement, e: MouseEvent) {
         el.isSelected = el.id === element.id
       })
       selectedElementIds.value = new Set([element.id])
+    }
+    
+    isDragging.value = true
+    dragElement.value = element
+    dragStartX.value = pos.x
+    dragStartY.value = pos.y
+    
+    if (element.type === 'text' || element.type === 'emoji') {
+      const bounds = getElementBounds(element)
+      dragElementStartX.value = bounds.x
+      dragElementStartY.value = bounds.y
+    } else {
+      dragElementStartX.value = element.x || 0
+      dragElementStartY.value = element.y || 0
     }
   }
   
