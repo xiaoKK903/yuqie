@@ -82,6 +82,34 @@
         <el-button
           text
           class="tool-btn"
+          @click="showEmojiPicker = !showEmojiPicker"
+          title="表情"
+        >
+          <span class="tool-icon">😊</span>
+        </el-button>
+        <el-button
+          text
+          class="tool-btn"
+          @click="triggerImageUpload"
+          title="图片"
+        >
+          <span class="tool-icon">🖼</span>
+        </el-button>
+        <input
+          ref="imageUploadRef"
+          type="file"
+          accept="image/*"
+          class="image-upload-input"
+          @change="handleImageUpload"
+        />
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="tool-group">
+        <el-button
+          text
+          class="tool-btn"
           @click="handleUndo"
           :disabled="historyIndex <= 0"
           title="撤销"
@@ -147,6 +175,19 @@
             <el-option :value="48" label="48px" />
           </el-select>
         </div>
+      </div>
+    </div>
+
+    <div class="emoji-picker-panel" v-if="showEmojiPicker">
+      <div class="emoji-grid">
+        <button
+          v-for="(emoji, index) in emojiList"
+          :key="index"
+          class="emoji-item"
+          @click="insertEmoji(emoji)"
+        >
+          {{ emoji }}
+        </button>
       </div>
     </div>
 
@@ -253,6 +294,59 @@
           >
             {{ element.text }}
           </text>
+
+          <text
+            v-else-if="element.type === 'emoji'"
+            :x="element.x"
+            :y="element.y"
+            :font-size="element.fontSize || 32"
+            :class="{ 'element-selected': element.isSelected }"
+            @mousedown.stop="handleElementClick(element, $event)"
+            :contenteditable="false"
+          >
+            {{ element.emoji }}
+          </text>
+
+          <g
+            v-else-if="element.type === 'image'"
+            @mousedown.stop="handleElementClick(element, $event)"
+          >
+            <image
+              :x="element.x"
+              :y="element.y"
+              :width="element.width"
+              :height="element.height"
+              :href="element.imageUrl"
+              :class="{ 'element-selected': element.isSelected }"
+              preserveAspectRatio="xMidYMid meet"
+            />
+          </g>
+
+          <g v-if="element.isSelected && (element.type === 'rectangle' || element.type === 'circle' || element.type === 'text' || element.type === 'emoji' || element.type === 'image')">
+            <rect
+              :x="getElementBounds(element).x - 5"
+              :y="getElementBounds(element).y - 5"
+              :width="getElementBounds(element).width + 10"
+              :height="getElementBounds(element).height + 10"
+              :fill="'transparent'"
+              :stroke="'#409EFF'"
+              :stroke-width="1"
+              :stroke-dasharray="'3,3'"
+            />
+
+            <circle
+              v-for="(handle, index) in getResizeHandles(element)"
+              :key="index"
+              :cx="handle.x"
+              :cy="handle.y"
+              :r="5"
+              :fill="'#fff'"
+              :stroke="'#409EFF'"
+              :stroke-width="2"
+              :class="'resize-handle'"
+              @mousedown.stop="startResize(element, handle.type, $event)"
+            />
+          </g>
         </template>
 
         <rect
@@ -347,7 +441,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, onMounted as onMountedVue } from 'vue'
 import type { InteractiveCanvasData, CanvasElement, CanvasTool, CanvasShapeType } from '@/types'
 
 interface Props {
@@ -359,18 +453,26 @@ interface Emits {
   (e: 'delete'): void
 }
 
+interface ResizeHandle {
+  x: number
+  y: number
+  type: 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se'
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const canvasRef = ref<SVGSVGElement | null>(null)
 const canvasContainerRef = ref<HTMLDivElement | null>(null)
 const textInputRef = ref<HTMLInputElement | null>(null)
+const imageUploadRef = ref<HTMLInputElement | null>(null)
 
 const currentTool = ref<CanvasTool>('pen')
 const strokeColor = ref('#333333')
 const fillColor = ref('transparent')
 const strokeWidth = ref(2)
 const fontSize = ref(16)
+const emojiSize = ref(32)
 
 const isDrawing = ref(false)
 const isSelecting = ref(false)
@@ -387,18 +489,57 @@ const isEditingText = ref(false)
 const editingTextElement = ref<CanvasElement | null>(null)
 const editingText = ref('')
 
+const showEmojiPicker = ref(false)
+
 const history = ref<InteractiveCanvasData[]>([])
 const historyIndex = ref(-1)
 
 const canvasData = ref<InteractiveCanvasData>(JSON.parse(JSON.stringify(props.modelValue)))
 
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const dragElement = ref<CanvasElement | null>(null)
+const dragElementStartX = ref(0)
+const dragElementStartY = ref(0)
+
+const isResizing = ref(false)
+const resizeStartX = ref(0)
+const resizeStartY = ref(0)
+const resizeElement = ref<CanvasElement | null>(null)
+const resizeHandleType = ref<string>('')
+const resizeElementStartX = ref(0)
+const resizeElementStartY = ref(0)
+const resizeElementStartWidth = ref(0)
+const resizeElementStartHeight = ref(0)
+
+const emojiList = ref([
+  '😊', '😂', '🤣', '😍', '🥰', '😘', '😎', '🤔',
+  '👍', '👎', '👏', '🙏', '💪', '🎉', '🎊', '✨',
+  '💡', '📌', '📝', '🗂️', '📊', '📈', '🎯', '💼',
+  '⭐', '❤️', '💚', '💙', '💛', '💜', '🖤', '🤍',
+  '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪',
+  '▶️', '⏸️', '⏹️', '⏩', '⏪', '🔁', '🔂', '🔀',
+  '✅', '❌', '⚠️', '❓', '💬', '💭', '🔔', '🔕',
+  '📁', '📂', '🗑️', '🔒', '🔓', '⚙️', '🔧', '🔨'
+])
+
 watch(() => props.modelValue, (newVal) => {
   canvasData.value = JSON.parse(JSON.stringify(newVal))
 }, { deep: true })
 
-onMounted(() => {
+onMountedVue(() => {
   initHistory()
+  
+  document.addEventListener('click', handleDocumentClick)
 })
+
+function handleDocumentClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.canvas-toolbar') && !target.closest('.emoji-picker-panel')) {
+    showEmojiPicker.value = false
+  }
+}
 
 function initHistory() {
   history.value = [JSON.parse(JSON.stringify(canvasData.value))]
@@ -474,6 +615,146 @@ function getArrowPath(element: CanvasElement): string {
   return `M ${element.endX} ${element.endY} L ${x1} ${y1} L ${x2} ${y2} Z`
 }
 
+function getElementBounds(element: CanvasElement): { x: number; y: number; width: number; height: number } {
+  if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'image') {
+    return {
+      x: element.x || 0,
+      y: element.y || 0,
+      width: element.width || 100,
+      height: element.height || 100
+    }
+  } else if (element.type === 'text' || element.type === 'emoji') {
+    const text = element.type === 'text' ? element.text : element.emoji
+    const fs = element.fontSize || (element.type === 'emoji' ? 32 : 16)
+    const textWidth = Math.max(100, (text?.length || 1) * fs * 0.6)
+    return {
+      x: element.x || 0,
+      y: (element.y || 0) - fs,
+      width: textWidth,
+      height: fs
+    }
+  } else if (element.type === 'line' || element.type === 'arrow') {
+    const minX = Math.min(element.startX || 0, element.endX || 0)
+    const maxX = Math.max(element.startX || 0, element.endX || 0)
+    const minY = Math.min(element.startY || 0, element.endY || 0)
+    const maxY = Math.max(element.startY || 0, element.endY || 0)
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    }
+  }
+  return { x: 0, y: 0, width: 0, height: 0 }
+}
+
+function getResizeHandles(element: CanvasElement): ResizeHandle[] {
+  const bounds = getElementBounds(element)
+  const x = bounds.x
+  const y = bounds.y
+  const w = bounds.width
+  const h = bounds.height
+  
+  return [
+    { x: x, y: y, type: 'nw' },
+    { x: x + w / 2, y: y, type: 'n' },
+    { x: x + w, y: y, type: 'ne' },
+    { x: x, y: y + h / 2, type: 'w' },
+    { x: x + w, y: y + h / 2, type: 'e' },
+    { x: x, y: y + h, type: 'sw' },
+    { x: x + w / 2, y: y + h, type: 's' },
+    { x: x + w, y: y + h, type: 'se' }
+  ]
+}
+
+function insertEmoji(emoji: string) {
+  const newElement: CanvasElement = {
+    id: generateId(),
+    type: 'emoji',
+    x: 100,
+    y: 100,
+    emoji: emoji,
+    strokeColor: strokeColor.value,
+    strokeWidth: strokeWidth.value,
+    fontSize: emojiSize.value
+  }
+  
+  canvasData.value.elements.push(newElement)
+  saveToHistory()
+  showEmojiPicker.value = false
+}
+
+function triggerImageUpload() {
+  imageUploadRef.value?.click()
+}
+
+function handleImageUpload(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  
+  const reader = new FileReader()
+  reader.onload = (event) => {
+    const dataUrl = event.target?.result as string
+    
+    const img = new Image()
+    img.onload = () => {
+      let width = img.width
+      let height = img.height
+      
+      const maxSize = 300
+      if (width > maxSize || height > maxSize) {
+        const ratio = Math.min(maxSize / width, maxSize / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      
+      const newElement: CanvasElement = {
+        id: generateId(),
+        type: 'image',
+        x: 100,
+        y: 100,
+        width,
+        height,
+        imageUrl: dataUrl,
+        strokeColor: strokeColor.value,
+        strokeWidth: strokeWidth.value
+      }
+      
+      canvasData.value.elements.push(newElement)
+      saveToHistory()
+    }
+    img.src = dataUrl
+  }
+  reader.readAsDataURL(file)
+  
+  target.value = ''
+}
+
+function startResize(element: CanvasElement, handleType: string, e: MouseEvent) {
+  e.stopPropagation()
+  isResizing.value = true
+  resizeElement.value = element
+  resizeHandleType.value = handleType
+  
+  const pos = getMousePos(e)
+  resizeStartX.value = pos.x
+  resizeStartY.value = pos.y
+  
+  resizeElementStartX.value = element.x || 0
+  resizeElementStartY.value = element.y || 0
+  resizeElementStartWidth.value = element.width || 100
+  resizeElementStartHeight.value = element.height || 100
+  
+  const bounds = getElementBounds(element)
+  if (element.type === 'text' || element.type === 'emoji') {
+    resizeElementStartX.value = bounds.x
+    resizeElementStartY.value = bounds.y
+    resizeElementStartWidth.value = bounds.width
+    resizeElementStartHeight.value = bounds.height
+  }
+}
+
 function handleMouseDown(e: MouseEvent) {
   const pos = getMousePos(e)
   
@@ -487,9 +768,32 @@ function handleMouseDown(e: MouseEvent) {
     return
   }
   
+  if (currentTool.value === 'select') {
+    const clickedElement = canvasData.value.elements.find(el => 
+      el.isSelected && isPointInElement(pos, el)
+    )
+    
+    if (clickedElement) {
+      isDragging.value = true
+      dragElement.value = clickedElement
+      dragStartX.value = pos.x
+      dragStartY.value = pos.y
+      
+      if (clickedElement.type === 'text' || clickedElement.type === 'emoji') {
+        const bounds = getElementBounds(clickedElement)
+        dragElementStartX.value = bounds.x
+        dragElementStartY.value = bounds.y
+      } else {
+        dragElementStartX.value = clickedElement.x || 0
+        dragElementStartY.value = clickedElement.y || 0
+      }
+      return
+    }
+  }
+  
   if (currentTool.value === 'text') {
     const clickedOnExistingText = canvasData.value.elements.some(el => 
-      el.type === 'text' && isPointInElement(pos, el)
+      (el.type === 'text' || el.type === 'emoji') && isPointInElement(pos, el)
     )
     
     if (clickedOnExistingText) {
@@ -543,6 +847,81 @@ function handleMouseDown(e: MouseEvent) {
 function handleMouseMove(e: MouseEvent) {
   const pos = getMousePos(e)
   
+  if (isDragging.value && dragElement.value) {
+    const dx = pos.x - dragStartX.value
+    const dy = pos.y - dragStartY.value
+    
+    const el = dragElement.value
+    if (el.type === 'line' || el.type === 'arrow') {
+      el.startX = (el.startX || 0) + dx
+      el.startY = (el.startY || 0) + dy
+      el.endX = (el.endX || 0) + dx
+      el.endY = (el.endY || 0) + dy
+    } else if (el.type === 'pen' && el.points) {
+      el.points = el.points.map(p => ({
+        x: p.x + dx,
+        y: p.y + dy
+      }))
+    } else if (el.type === 'text' || el.type === 'emoji') {
+      el.x = dragElementStartX.value + dx
+      el.y = (dragElementStartY.value || 0) + dy + (el.fontSize || 16)
+    } else {
+      el.x = dragElementStartX.value + dx
+      el.y = dragElementStartY.value + dy
+    }
+    
+    dragStartX.value = pos.x
+    dragStartY.value = pos.y
+    dragElementStartX.value = el.x || 0
+    dragElementStartY.value = el.y || 0
+    return
+  }
+  
+  if (isResizing.value && resizeElement.value) {
+    const dx = pos.x - resizeStartX.value
+    const dy = pos.y - resizeStartY.value
+    const el = resizeElement.value
+    const handle = resizeHandleType.value
+    
+    if (el.type === 'rectangle' || el.type === 'circle' || el.type === 'image') {
+      let newX = resizeElementStartX.value
+      let newY = resizeElementStartY.value
+      let newWidth = resizeElementStartWidth.value
+      let newHeight = resizeElementStartHeight.value
+      
+      if (handle.includes('w')) {
+        newX = resizeElementStartX.value + dx
+        newWidth = resizeElementStartWidth.value - dx
+      }
+      if (handle.includes('e')) {
+        newWidth = resizeElementStartWidth.value + dx
+      }
+      if (handle.includes('n')) {
+        newY = resizeElementStartY.value + dy
+        newHeight = resizeElementStartHeight.value - dy
+      }
+      if (handle.includes('s')) {
+        newHeight = resizeElementStartHeight.value + dy
+      }
+      
+      if (newWidth > 10) {
+        el.x = newX
+        el.width = newWidth
+      }
+      if (newHeight > 10) {
+        el.y = newY
+        el.height = newHeight
+      }
+    } else if (el.type === 'text' || el.type === 'emoji') {
+      if (handle.includes('e') || handle.includes('w') || handle.includes('se')) {
+        const currentSize = el.fontSize || (el.type === 'emoji' ? 32 : 16)
+        const sizeChange = dx + dy
+        el.fontSize = Math.max(12, Math.min(120, currentSize + sizeChange / 5))
+      }
+    }
+    return
+  }
+  
   if (currentTool.value === 'eraser' && e.buttons === 1) {
     const elementIndex = canvasData.value.elements.findIndex(el => isPointInElement(pos, el))
     if (elementIndex !== -1) {
@@ -567,6 +946,20 @@ function handleMouseMove(e: MouseEvent) {
 }
 
 function handleMouseUp() {
+  if (isDragging.value) {
+    isDragging.value = false
+    dragElement.value = null
+    saveToHistory()
+    return
+  }
+  
+  if (isResizing.value) {
+    isResizing.value = false
+    resizeElement.value = null
+    saveToHistory()
+    return
+  }
+  
   if (isSelecting.value && drawStartX.value !== null && drawStartY.value !== null) {
     const selectionRect = {
       x1: Math.min(drawStartX.value, currentX.value),
@@ -723,16 +1116,22 @@ function isPointInElement(point: { x: number; y: number }, element: CanvasElemen
       { x: element.endX || 0, y: element.endY || 0 }
     )
     return dist < (element.strokeWidth || 2) + 5
-  } else if (element.type === 'text') {
+  } else if (element.type === 'text' || element.type === 'emoji') {
     const minWidth = 100
+    const text = element.type === 'text' ? element.text : element.emoji
     const textWidth = Math.max(
       minWidth,
-      (element.text?.length || 0) * (element.fontSize || 16) * 0.6
+      (text?.length || 0) * (element.fontSize || 16) * 0.6
     )
     return point.x >= (element.x || 0) &&
            point.x <= (element.x || 0) + textWidth &&
            point.y >= (element.y || 0) - (element.fontSize || 16) &&
            point.y <= (element.y || 0)
+  } else if (element.type === 'image') {
+    return point.x >= (element.x || 0) &&
+           point.x <= (element.x || 0) + (element.width || 0) &&
+           point.y >= (element.y || 0) &&
+           point.y <= (element.y || 0) + (element.height || 0)
   }
   return false
 }
@@ -780,16 +1179,11 @@ function isElementInRect(
       p.x >= rect.x1 && p.x <= rect.x2 &&
       p.y >= rect.y1 && p.y <= rect.y2
     )
-  } else if (element.type === 'rectangle') {
+  } else if (element.type === 'rectangle' || element.type === 'circle' || element.type === 'image') {
     return (element.x || 0) >= rect.x1 &&
            (element.x || 0) + (element.width || 0) <= rect.x2 &&
            (element.y || 0) >= rect.y1 &&
            (element.y || 0) + (element.height || 0) <= rect.y2
-  } else if (element.type === 'circle') {
-    const cx = (element.x || 0) + (element.width || 0) / 2
-    const cy = (element.y || 0) + (element.height || 0) / 2
-    return cx >= rect.x1 && cx <= rect.x2 &&
-           cy >= rect.y1 && cy <= rect.y2
   } else if (element.type === 'line' || element.type === 'arrow') {
     return (element.startX || 0) >= rect.x1 &&
            (element.startX || 0) <= rect.x2 &&
@@ -799,7 +1193,7 @@ function isElementInRect(
            (element.endX || 0) <= rect.x2 &&
            (element.endY || 0) >= rect.y1 &&
            (element.endY || 0) <= rect.y2
-  } else if (element.type === 'text') {
+  } else if (element.type === 'text' || element.type === 'emoji') {
     return (element.x || 0) >= rect.x1 &&
            (element.x || 0) <= rect.x2 &&
            (element.y || 0) >= rect.y1 &&
@@ -850,6 +1244,7 @@ function getToolLabel(tool: CanvasTool): string {
   border: 1px solid #e4e7ed;
   border-radius: 4px;
   overflow: hidden;
+  position: relative;
 }
 
 .canvas-toolbar {
@@ -952,6 +1347,46 @@ function getToolLabel(tool: CanvasTool): string {
   }
 }
 
+.emoji-picker-panel {
+  position: absolute;
+  top: 50px;
+  left: 200px;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+
+  .emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+  }
+
+  .emoji-item {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 20px;
+    border-radius: 4px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: #f5f7fa;
+    }
+  }
+}
+
+.image-upload-input {
+  display: none;
+}
+
 .canvas-container {
   flex: 1;
   overflow: auto;
@@ -977,8 +1412,11 @@ function getToolLabel(tool: CanvasTool): string {
 }
 
 .element-selected {
-  outline: 2px solid #409EFF;
-  outline-offset: 2px;
+  cursor: move;
+}
+
+.resize-handle {
+  cursor: pointer;
 }
 
 .canvas-delete-btn {
