@@ -381,17 +381,17 @@ function deleteSheet(sheetId: string) {
 watch(() => props.modelValue, (newVal) => {
   if (isEmitting.value) return
   
-  tableData.value = JSON.parse(JSON.stringify(newVal))
-  ensureSheets()
-}, { deep: true })
+  if (newVal.id !== tableData.value.id) {
+    tableData.value = JSON.parse(JSON.stringify(newVal))
+    ensureSheets()
+  }
+})
 
 function emitData() {
   isEmitting.value = true
   saveCurrentSheetToSheets()
   emit('update:modelValue', JSON.parse(JSON.stringify(tableData.value)))
-  nextTick(() => {
-    isEmitting.value = false
-  })
+  isEmitting.value = false
 }
 
 function getCellValue(rowIndex: number, colIndex: number): string {
