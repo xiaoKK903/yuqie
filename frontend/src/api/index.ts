@@ -1,5 +1,5 @@
 import request from './request'
-import type { Folder, Document, TreeNode, Km } from '@/types'
+import type { Folder, Document, TreeNode, Km, DocumentVersion } from '@/types'
 
 export const kmApi = {
   getAll() {
@@ -73,5 +73,19 @@ export const treeApi = {
     position: 'before' | 'after' | 'inside'
   }) {
     return request.post('/tree/move', params)
+  },
+}
+
+export const versionApi = {
+  getByDocumentId(documentId: number) {
+    return request.get<{ data: DocumentVersion[] }>(`/versions/document/${documentId}`)
+  },
+
+  getById(id: number) {
+    return request.get<{ data: DocumentVersion }>(`/versions/${id}`)
+  },
+
+  restore(id: number) {
+    return request.post<{ data: any; message?: string }>(`/versions/restore/${id}`)
   },
 }
