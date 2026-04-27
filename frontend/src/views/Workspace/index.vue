@@ -1646,6 +1646,25 @@ watch(editorBlocks, (newBlocks) => {
   }
 }, { deep: true })
 
+let hasOpenedDoc = ref(false)
+
+watch(() => [treeData.value, loading.value], () => {
+  if (hasOpenedDoc.value || loading.value || treeData.value.length === 0) return
+  
+  const docIdParam = route.query.docId
+  if (docIdParam && docIdParam !== '') {
+    const docId = parseInt(docIdParam as string)
+    if (!isNaN(docId)) {
+      const nodes = getAllNodes()
+      const targetNode = nodes.find(n => n.id === docId && n.type === 'document')
+      if (targetNode) {
+        hasOpenedDoc.value = true
+        handleNodeSelect(targetNode)
+      }
+    }
+  }
+}, { immediate: true })
+
 function updateFormatState() {
   if (!useBlockEditor.value) return
   
