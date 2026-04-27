@@ -175,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
@@ -212,6 +212,8 @@ const resizingColumn = ref<{ colIndex: number; startX: number; startWidth: numbe
 
 const editingSheetId = ref<string | null>(null)
 const renamingSheetName = ref('')
+
+const isEmitting = ref(false)
 
 const sheets = computed(() => tableData.value.sheets || [])
 const activeSheetId = computed(() => tableData.value.activeSheetId || '')
@@ -377,13 +379,19 @@ function deleteSheet(sheetId: string) {
 }
 
 watch(() => props.modelValue, (newVal) => {
+  if (isEmitting.value) return
+  
   tableData.value = JSON.parse(JSON.stringify(newVal))
   ensureSheets()
 }, { deep: true })
 
 function emitData() {
+  isEmitting.value = true
   saveCurrentSheetToSheets()
   emit('update:modelValue', JSON.parse(JSON.stringify(tableData.value)))
+  nextTick(() => {
+    isEmitting.value = false
+  })
 }
 
 function getCellValue(rowIndex: number, colIndex: number): string {
@@ -774,8 +782,7 @@ onUnmounted(() => {
 .sheet-tabs-bar {
   display: flex;
   align-items: center;
-  background: #fafafa;
-  border-top: 1px solid #e4e7ed;
+  background: #fff;
   border-bottom: 1px solid #e4e7ed;
   padding: 0 8px;
   height: 36px;
@@ -784,7 +791,7 @@ onUnmounted(() => {
 .sheet-tabs-scroll {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   flex: 1;
   overflow-x: auto;
   
@@ -802,20 +809,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 12px;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
+  padding: 0 16px;
   font-size: 13px;
   color: #606266;
   cursor: pointer;
   transition: all 0.2s;
-  height: 28px;
+  height: 35px;
   position: relative;
   
   &:hover {
-    background: #fff;
     color: #409eff;
+    background: #f5f7fa;
     
     .sheet-close {
       opacity: 1;
@@ -823,11 +827,10 @@ onUnmounted(() => {
   }
   
   &.is-active {
-    background: #fff;
     color: #409eff;
-    border-color: #e4e7ed;
-    border-bottom-color: #fff;
-    margin-bottom: -1px;
+    font-weight: 500;
+    background: #fafafa;
+    border-bottom: 2px solid #409eff;
   }
 }
 
