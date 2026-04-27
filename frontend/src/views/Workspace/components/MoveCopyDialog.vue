@@ -161,8 +161,28 @@ const emit = defineEmits<{
     targetNodeId: number | null
     targetType: 'folder' | 'document' | null
     position: 'before' | 'after' | 'inside'
+    copyNodes?: CopyNodeInfo[]
   }]
 }>()
+
+interface CopyNodeInfo {
+  id: number
+  type: 'folder' | 'document'
+  name: string
+  parentId: number | null
+  kmId: number | null
+  children: CopyNodeInfo[]
+}
+
+interface CopyPlan {
+  sourceId: number
+  sourceType: 'folder' | 'document'
+  name: string
+  parentId: number | null
+  newParentId: number | null
+  content?: string
+  children: CopyPlan[]
+}
 
 const visible = computed({
   get: () => props.modelValue,
@@ -371,15 +391,87 @@ async function handleConfirm() {
     position = 'inside'
   }
   
-  emit('confirm', {
+  const emitParams: any = {
     targetKmId,
     targetFolderId,
     targetNodeId,
     targetType,
     position,
-  })
+  }
+  
+  if (props.operation === 'copy' && props.sourceNode) {
+    const copyNodes = await buildCopyNodes(props.sourceNode)
+    emitParams.copyNodes = copyNodes
+  }
+  
+  emit('confirm', emitParams)
   
   visible.value = false
+}
+
+async function buildCopyNodes(sourceNode: TreeNode): Promise<CopyNodeInfo[]> {
+  const sourceKmId = sourceNode.kmId
+  
+  let sourceTreeData: TreeNode[] = []
+  
+  if (sourceKmId !== null && sourceKmId !== undefined) {
+    try {
+      const res = await treeApi.getTree(sourceKmId)
+      sourceTreeData = res.data.data || []
+    } catch (e) {
+      console.error('获取源知识库树数据失败:', e)
+      return []
+    }
+  } else {
+    try {
+      const res = await treeApi.getTree(null)
+      sourceTreeData = res.data.data || []
+    } catch (e) {
+      console.error('获取默认知识库树数据失败:', e)
+      return []
+    }
+  }
+  
+  const allSourceNodes = flattenTree(sourceTreeData)
+  
+  function buildNodeTree(nodeId: number, nodeType: 'folder' | 'document'): CopyNodeInfo | null {
+    const node = allSourceNodes.find(n => n.id === nodeId && n.type === nodeType)
+    if (!node) return null
+    
+    const children: CopyNodeInfo[] = []
+    
+    if (nodeType === 'folder') {
+      const childFolders = allSourceNodes.filter(n => 
+        n.type === 'folder' && n.parentId === nodeId
+      )
+      
+      for (const cf of childFolders) {
+        const childTree = buildNodeTree(cf.id, 'folder')
+        if (childTree) children.push(childTree)
+      }
+      
+      const childDocs = allSourceNodes.filter(n => 
+        n.type === 'document' && n.parentId === nodeId
+      )
+      
+      for (const cd of childDocs) {
+        const childTree = buildNodeTree(cd.id, 'document')
+        if (childTree) children.push(childTree)
+      }
+    }
+    
+    return {
+      id: node.id,
+      type: node.type,
+      name: node.name,
+      parentId: node.parentId,
+      kmId: node.kmId || null,
+      children,
+    }
+  }
+  
+  const rootNode = buildNodeTree(sourceNode.id, sourceNode.type)
+  return rootNode ? [rootNode] : []
 }
 
 watch(visible, async (val) => {

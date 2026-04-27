@@ -1044,12 +1044,22 @@ function handleCopy(node: TreeNodeType) {
   }
 }
 
+interface CopyNodeInfo {
+  id: number
+  type: 'folder' | 'document'
+  name: string
+  parentId: number | null
+  kmId: number | null
+  children: CopyNodeInfo[]
+}
+
 async function handleMoveCopyConfirm(params: {
   targetKmId: number | null
   targetFolderId: number | null
   targetNodeId: number | null
   targetType: 'folder' | 'document' | null
   position: 'before' | 'after' | 'inside'
+  copyNodes?: CopyNodeInfo[]
 }) {
   const sourceNode = moveCopyDialog.value.sourceNode
   if (!sourceNode) return
@@ -1082,12 +1092,10 @@ async function handleMoveCopyConfirm(params: {
       
       ElMessage.success('移动成功')
     } else {
-      if (sourceNode.type === 'folder') {
-        await folderApi.create({
-          name: sourceNode.name,
-          parentId: params.targetFolderId,
-          kmId: params.targetKmId || undefined,
-        })
+      if (params.copyNodes && params.copyNodes.length > 0) {
+        await copyNodesRecursively(params.copyNodes, params.targetFolderId, params.targetKmId)
+      } else if (sourceNode.type === 'folder') {
+        await copyFolderRecursively(sourceNode, params.targetFolderId, params.targetKmId)
       } else {
         const doc = await documentApi.getById(sourceNode.id)
         await documentApi.create({
@@ -1105,6 +1113,84 @@ async function handleMoveCopyConfirm(params: {
   } catch (error: any) {
     ElMessage.error(error.message || `${operation === 'move' ? '移动' : '复制'}失败`)
   }
+}
+
+async function copyNodesRecursively(
+  nodes: CopyNodeInfo[],
+  targetParentId: number | null,
+  targetKmId: number | null
+): Promise<void> {
+  for (const node of nodes) {
+    if (node.type === 'folder') {
+      const newFolder = await folderApi.create({
+        name: node.name,
+        parentId: targetParentId,
+        kmId: targetKmId || undefined,
+      })
+      
+      const newFolderId = newFolder.data.data.id
+      
+      if (node.children && node.children.length > 0) {
+        await copyNodesRecursively(node.children, newFolderId, targetKmId)
+      }
+    } else {
+      try {
+        const docDetail = await documentApi.getById(node.id)
+        await documentApi.create({
+          title: node.name,
+          folderId: targetParentId,
+          kmId: targetKmId || undefined,
+          content: docDetail.data.data.content || '',
+        })
+      } catch (e) {
+        console.error(`复制文档 ${node.name} 失败:`, e)
+      }
+    }
+  }
+}
+
+async function copyFolderRecursively(
+  sourceFolder: TreeNode,
+  targetParentId: number | null,
+  targetKmId: number | null
+): Promise<number> {
+  const allNodes = getAllNodes()
+  
+  const newFolder = await folderApi.create({
+    name: sourceFolder.name,
+    parentId: targetParentId,
+    kmId: targetKmId || undefined,
+  })
+  
+  const newFolderId = newFolder.data.data.id
+  
+  const childFolders = allNodes.filter(n => 
+    n.type === 'folder' && n.parentId === sourceFolder.id
+  )
+  
+  for (const childFolder of childFolders) {
+    await copyFolderRecursively(childFolder, newFolderId, targetKmId)
+  }
+  
+  const childDocuments = allNodes.filter(n => 
+    n.type === 'document' && n.parentId === sourceFolder.id
+  )
+  
+  for (const doc of childDocuments) {
+    try {
+      const docDetail = await documentApi.getById(doc.id)
+      await documentApi.create({
+        title: doc.name,
+        folderId: newFolderId,
+        kmId: targetKmId || undefined,
+        content: docDetail.data.data.content || '',
+      })
+    } catch (e) {
+      console.error(`复制文档 ${doc.name} 失败:`, e)
+    }
+  }
+  
+  return newFolderId
 }
 
 async function handleDrop(params: {
