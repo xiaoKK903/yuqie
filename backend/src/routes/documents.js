@@ -64,11 +64,12 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { title, folderId, content = '' } = req.body
+    const { title, folderId, content = '', kmId } = req.body
     
     console.log('[创建文档] 收到请求:')
     console.log('  - title:', title)
     console.log('  - folderId:', folderId, '类型:', typeof folderId)
+    console.log('  - kmId:', kmId)
     console.log('  - req.body:', JSON.stringify(req.body))
     
     if (!title || title.trim() === '') {
@@ -94,7 +95,8 @@ router.post('/', (req, res) => {
     const document = documentModel.createDocument(
       title.trim(),
       folderId === null || folderId === undefined ? null : parseInt(folderId),
-      content
+      content,
+      kmId === null || kmId === undefined ? null : parseInt(kmId)
     )
     
     console.log('[创建文档] 创建成功:', document)
@@ -113,6 +115,7 @@ router.post('/', (req, res) => {
         title: document.title,
         content: document.content,
         folderId: document.folder_id,
+        kmId: document.km_id,
         sort: document.sort,
         createdAt: document.created_at,
         updatedAt: document.updated_at,

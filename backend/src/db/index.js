@@ -46,15 +46,38 @@ async function initDb() {
   }
   
   db.run(`
-    CREATE TABLE IF NOT EXISTS folders (
+    CREATE TABLE IF NOT EXISTS kms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      parent_id INTEGER,
       sort INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `)
+  
+  const kmsTable = db.exec("PRAGMA table_info(kms)")
+  console.log('kms 表结构:', kmsTable)
+  
+  db.run(`
+    CREATE TABLE IF NOT EXISTS folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      parent_id INTEGER,
+      km_id INTEGER,
+      sort INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+  
+  const foldersTable = db.exec("PRAGMA table_info(folders)")
+  const foldersHasKmId = foldersTable && foldersTable.length > 0 && 
+    foldersTable[0].values.some(col => col[1] === 'km_id')
+  
+  if (!foldersHasKmId) {
+    console.log('folders 表缺少 km_id 列，正在添加...')
+    db.run('ALTER TABLE folders ADD COLUMN km_id INTEGER')
+  }
   
   db.run(`
     CREATE TABLE IF NOT EXISTS documents (
@@ -62,11 +85,21 @@ async function initDb() {
       title TEXT NOT NULL,
       content TEXT NOT NULL DEFAULT '',
       folder_id INTEGER,
+      km_id INTEGER,
       sort INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `)
+  
+  const docsTable = db.exec("PRAGMA table_info(documents)")
+  const docsHasKmId = docsTable && docsTable.length > 0 && 
+    docsTable[0].values.some(col => col[1] === 'km_id')
+  
+  if (!docsHasKmId) {
+    console.log('documents 表缺少 km_id 列，正在添加...')
+    db.run('ALTER TABLE documents ADD COLUMN km_id INTEGER')
+  }
   
   db.run(`
     CREATE TABLE IF NOT EXISTS document_versions (
@@ -83,6 +116,9 @@ async function initDb() {
   
   db.run(`CREATE INDEX IF NOT EXISTS idx_versions_document_id ON document_versions (document_id)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_versions_created_at ON document_versions (created_at)`)
+  
+  db.run(`CREATE INDEX IF NOT EXISTS idx_folders_km_id ON folders (km_id)`)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_documents_km_id ON documents (km_id)`)
   
   dbReady = true
   

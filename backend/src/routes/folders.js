@@ -60,7 +60,7 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { name, parentId } = req.body
+    const { name, parentId, kmId } = req.body
     
     if (!name || name.trim() === '') {
       return res.status(400).json({
@@ -81,7 +81,8 @@ router.post('/', (req, res) => {
     
     const folder = folderModel.createFolder(
       name.trim(),
-      parentId === null || parentId === undefined ? null : parseInt(parentId)
+      parentId === null || parentId === undefined ? null : parseInt(parentId),
+      kmId === null || kmId === undefined ? null : parseInt(kmId)
     )
     
     res.json({
@@ -90,6 +91,7 @@ router.post('/', (req, res) => {
         id: folder.id,
         name: folder.name,
         parentId: folder.parent_id,
+        kmId: folder.km_id,
         sort: folder.sort,
         createdAt: folder.created_at,
         updatedAt: folder.updated_at,

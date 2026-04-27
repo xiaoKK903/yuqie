@@ -9,6 +9,14 @@ export interface TreeNode {
   isActive?: boolean
 }
 
+export interface Km {
+  id: number
+  name: string
+  sort: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Folder {
   id: number
   name: string

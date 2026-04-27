@@ -6,8 +6,55 @@ const router = Router()
 
 router.get('/', (req, res) => {
   try {
-    const folders = folderModel.getAllFolders()
-    const documents = documentModel.getAllDocuments()
+    const { kmId } = req.query
+    
+    let folders, documents
+    
+    if (kmId === undefined || kmId === null || kmId === '') {
+      folders = folderModel.getAllFolders()
+      documents = documentModel.getAllDocuments()
+    } else {
+      const kmIdNum = parseInt(kmId)
+      const allFolders = folderModel.getAllFolders()
+      const allDocs = documentModel.getAllDocuments()
+      
+      const getFolderIdsRecursive = (folderList, targetKmId) => {
+        const directFolders = folderList.filter(f => 
+          f.km_id === targetKmId || (targetKmId === null && f.km_id === null)
+        )
+        
+        const getAllChildFolderIds = (parentIds) => {
+          const result = [...parentIds]
+          let changed = true
+          while (changed) {
+            changed = false
+            folderList.forEach(f => {
+              if (f.parent_id !== null && !result.includes(f.id) && result.includes(f.parent_id)) {
+                result.push(f.id)
+                changed = true
+              }
+            })
+          }
+          return result
+        }
+        
+        const directIds = directFolders.map(f => f.id)
+        const allIds = getAllChildFolderIds(directIds)
+        
+        return folderList.filter(f => allIds.includes(f.id))
+      }
+      
+      folders = getFolderIdsRecursive(allFolders, kmIdNum === null ? null : kmIdNum)
+      documents = allDocs.filter(d => {
+        if (d.km_id === kmIdNum) return true
+        if (d.folder_id !== null) {
+          return folders.some(f => f.id === d.folder_id)
+        }
+        return false
+      })
+    }
+    
+    console.log('[tree] kmId:', kmId, 'folders count:', folders.length, 'documents count:', documents.length)
     
     const isNull = (val) => val === null || val === undefined
     
