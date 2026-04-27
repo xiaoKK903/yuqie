@@ -130,6 +130,44 @@
       </div>
     </div>
     
+    <div class="sheet-tabs-bar">
+      <div class="sheet-tabs-scroll">
+        <div
+          v-for="sheet in sheets"
+          :key="sheet.id"
+          class="sheet-tab"
+          :class="{ 'is-active': sheet.id === activeSheetId }"
+          @click="switchSheet(sheet.id)"
+          @dblclick="startRenameSheet(sheet.id)"
+        >
+          <template v-if="editingSheetId === sheet.id">
+            <el-input
+              v-model="renamingSheetName"
+              size="small"
+              @blur="saveRenameSheet"
+              @keyup.enter="saveRenameSheet"
+              @keyup.esc="cancelRenameSheet"
+              class="sheet-name-input"
+              @click.stop
+            />
+          </template>
+          <template v-else>
+            <span class="sheet-name">{{ sheet.name }}</span>
+          </template>
+          <el-icon
+            v-if="sheets.length > 1 && editingSheetId !== sheet.id"
+            class="sheet-close"
+            @click.stop="deleteSheet(sheet.id)"
+          >
+            <Close />
+          </el-icon>
+        </div>
+      </div>
+      <div class="sheet-tab-add" @click="addSheet">
+        <el-icon><Plus /></el-icon>
+      </div>
+    </div>
+    
     <div class="table-footer">
       <span>{{ selectedRowIndices.length > 0 ? selectedRowIndices.length : tableData.rows.length }} 条记录</span>
     </div>
@@ -142,8 +180,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
   Delete,
+  Close,
 } from '@element-plus/icons-vue'
-import type { InteractiveTableData, TableFieldType } from '@/types'
+import type { InteractiveTableData, TableFieldType, TableSheet } from '@/types'
 
 const props = defineProps<{
   modelValue: InteractiveTableData
@@ -171,15 +210,179 @@ const editingTitle = ref('')
 
 const resizingColumn = ref<{ colIndex: number; startX: number; startWidth: number } | null>(null)
 
+const editingSheetId = ref<string | null>(null)
+const renamingSheetName = ref('')
+
+const sheets = computed(() => tableData.value.sheets || [])
+const activeSheetId = computed(() => tableData.value.activeSheetId || '')
+
 const tableWidth = computed(() => {
   return tableData.value.columns.reduce((sum, col) => sum + col.width, 0) + 50
 })
 
+function ensureSheets() {
+  if (!tableData.value.sheets || tableData.value.sheets.length === 0) {
+    const defaultSheet: TableSheet = {
+      id: 'sheet_' + Date.now(),
+      name: 'Sheet1',
+      columns: JSON.parse(JSON.stringify(tableData.value.columns)),
+      rows: JSON.parse(JSON.stringify(tableData.value.rows)),
+      cells: JSON.parse(JSON.stringify(tableData.value.cells)),
+      mergeCells: JSON.parse(JSON.stringify(tableData.value.mergeCells || [])),
+    }
+    tableData.value.sheets = [defaultSheet]
+    tableData.value.activeSheetId = defaultSheet.id
+  }
+}
+
+function saveCurrentSheetToSheets() {
+  if (!tableData.value.sheets || !tableData.value.activeSheetId) return
+  
+  const sheetIndex = tableData.value.sheets.findIndex(s => s.id === tableData.value.activeSheetId)
+  if (sheetIndex >= 0) {
+    tableData.value.sheets[sheetIndex].columns = JSON.parse(JSON.stringify(tableData.value.columns))
+    tableData.value.sheets[sheetIndex].rows = JSON.parse(JSON.stringify(tableData.value.rows))
+    tableData.value.sheets[sheetIndex].cells = JSON.parse(JSON.stringify(tableData.value.cells))
+    tableData.value.sheets[sheetIndex].mergeCells = JSON.parse(JSON.stringify(tableData.value.mergeCells || []))
+  }
+}
+
+function loadSheetFromSheets(sheetId: string) {
+  if (!tableData.value.sheets) return
+  
+  const sheet = tableData.value.sheets.find(s => s.id === sheetId)
+  if (sheet) {
+    tableData.value.columns = JSON.parse(JSON.stringify(sheet.columns))
+    tableData.value.rows = JSON.parse(JSON.stringify(sheet.rows))
+    tableData.value.cells = JSON.parse(JSON.stringify(sheet.cells))
+    tableData.value.mergeCells = JSON.parse(JSON.stringify(sheet.mergeCells || []))
+    tableData.value.activeSheetId = sheetId
+  }
+}
+
+function switchSheet(sheetId: string) {
+  if (sheetId === tableData.value.activeSheetId) return
+  if (editingSheetId.value) return
+  
+  saveCurrentSheetToSheets()
+  loadSheetFromSheets(sheetId)
+  
+  selectAll.value = false
+  selectedRowIndices.value = []
+  editingCell.value = null
+  editingValue.value = ''
+  
+  emitData()
+}
+
+function addSheet() {
+  ensureSheets()
+  
+  const sheetIndex = tableData.value.sheets!.length
+  const newSheet: TableSheet = {
+    id: 'sheet_' + Date.now(),
+    name: `Sheet${sheetIndex + 1}`,
+    columns: [
+      { id: 'col_1', width: 150, fieldType: 'text', title: '字段1' },
+      { id: 'col_2', width: 150, fieldType: 'text', title: '字段2' },
+      { id: 'col_3', width: 150, fieldType: 'text', title: '字段3' },
+    ],
+    rows: [
+      { id: 'row_1', height: 40 },
+      { id: 'row_2', height: 40 },
+      { id: 'row_3', height: 40 },
+    ],
+    cells: [
+      { rowId: 'row_1', colId: 'col_1', value: '' },
+      { rowId: 'row_1', colId: 'col_2', value: '' },
+      { rowId: 'row_1', colId: 'col_3', value: '' },
+      { rowId: 'row_2', colId: 'col_1', value: '' },
+      { rowId: 'row_2', colId: 'col_2', value: '' },
+      { rowId: 'row_2', colId: 'col_3', value: '' },
+      { rowId: 'row_3', colId: 'col_1', value: '' },
+      { rowId: 'row_3', colId: 'col_2', value: '' },
+      { rowId: 'row_3', colId: 'col_3', value: '' },
+    ],
+    mergeCells: [],
+  }
+  
+  saveCurrentSheetToSheets()
+  tableData.value.sheets!.push(newSheet)
+  loadSheetFromSheets(newSheet.id)
+  
+  selectAll.value = false
+  selectedRowIndices.value = []
+  editingCell.value = null
+  
+  emitData()
+  ElMessage.success('已添加新工作表')
+}
+
+function startRenameSheet(sheetId: string) {
+  if (tableData.value.sheets) {
+    const sheet = tableData.value.sheets.find(s => s.id === sheetId)
+    if (sheet) {
+      editingSheetId.value = sheetId
+      renamingSheetName.value = sheet.name
+    }
+  }
+}
+
+function saveRenameSheet() {
+  if (!editingSheetId.value || !tableData.value.sheets) return
+  
+  const newName = renamingSheetName.value.trim()
+  if (newName) {
+    const sheetIndex = tableData.value.sheets.findIndex(s => s.id === editingSheetId.value)
+    if (sheetIndex >= 0) {
+      tableData.value.sheets[sheetIndex].name = newName
+      emitData()
+    }
+  }
+  
+  editingSheetId.value = null
+  renamingSheetName.value = ''
+}
+
+function cancelRenameSheet() {
+  editingSheetId.value = null
+  renamingSheetName.value = ''
+}
+
+function deleteSheet(sheetId: string) {
+  if (!tableData.value.sheets || tableData.value.sheets.length <= 1) return
+  
+  ElMessageBox.confirm('确定要删除此工作表吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(() => {
+    const sheetIndex = tableData.value.sheets!.findIndex(s => s.id === sheetId)
+    if (sheetIndex >= 0) {
+      tableData.value.sheets!.splice(sheetIndex, 1)
+      
+      if (tableData.value.activeSheetId === sheetId) {
+        const firstSheet = tableData.value.sheets![0]
+        loadSheetFromSheets(firstSheet.id)
+        
+        selectAll.value = false
+        selectedRowIndices.value = []
+        editingCell.value = null
+      }
+      
+      emitData()
+      ElMessage.success('已删除工作表')
+    }
+  }).catch(() => {})
+}
+
 watch(() => props.modelValue, (newVal) => {
   tableData.value = JSON.parse(JSON.stringify(newVal))
+  ensureSheets()
 }, { deep: true })
 
 function emitData() {
+  saveCurrentSheetToSheets()
   emit('update:modelValue', JSON.parse(JSON.stringify(tableData.value)))
 }
 
@@ -385,6 +588,10 @@ function handleResizeEnd() {
   document.removeEventListener('mouseup', handleResizeEnd)
 }
 
+onMounted(() => {
+  ensureSheets()
+})
+
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleResizeMove)
   document.removeEventListener('mouseup', handleResizeEnd)
@@ -564,9 +771,118 @@ onUnmounted(() => {
   }
 }
 
+.sheet-tabs-bar {
+  display: flex;
+  align-items: center;
+  background: #fafafa;
+  border-top: 1px solid #e4e7ed;
+  border-bottom: 1px solid #e4e7ed;
+  padding: 0 8px;
+  height: 36px;
+}
+
+.sheet-tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+  
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #c0c4cc;
+    border-radius: 2px;
+  }
+}
+
+.sheet-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  font-size: 13px;
+  color: #606266;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 28px;
+  position: relative;
+  
+  &:hover {
+    background: #fff;
+    color: #409eff;
+    
+    .sheet-close {
+      opacity: 1;
+    }
+  }
+  
+  &.is-active {
+    background: #fff;
+    color: #409eff;
+    border-color: #e4e7ed;
+    border-bottom-color: #fff;
+    margin-bottom: -1px;
+  }
+}
+
+.sheet-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-name-input {
+  width: 100px;
+  
+  :deep(.el-input__wrapper) {
+    padding: 0 8px;
+    box-shadow: none;
+  }
+}
+
+.sheet-close {
+  opacity: 0;
+  transition: opacity 0.2s;
+  font-size: 12px;
+  padding: 2px;
+  border-radius: 2px;
+  
+  &:hover {
+    background: #f5f7fa;
+    color: #f56c6c;
+  }
+}
+
+.sheet-tab-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #909399;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #ecf5ff;
+    color: #409eff;
+  }
+  
+  .el-icon {
+    font-size: 14px;
+  }
+}
+
 .table-footer {
   padding: 8px 16px;
-  border-top: 1px solid #e4e7ed;
   background: #fafafa;
   font-size: 13px;
   color: #909399;
