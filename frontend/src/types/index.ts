@@ -44,17 +44,41 @@ export interface ApiResponse<T = unknown> {
 
 export type TableFieldType = 'text' | 'select' | 'date' | 'checkbox'
 
+export type HorizontalAlign = 'left' | 'center' | 'right'
+export type VerticalAlign = 'top' | 'middle' | 'bottom'
+export type BorderStyle = 'solid' | 'dashed' | 'dotted' | 'none'
+
+export interface CellFormat {
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+  fontSize?: number
+  fontFamily?: string
+  color?: string
+  bgColor?: string
+  align?: HorizontalAlign
+  verticalAlign?: VerticalAlign
+  wrapText?: boolean
+  borderTop?: { style: BorderStyle; color: string }
+  borderBottom?: { style: BorderStyle; color: string }
+  borderLeft?: { style: BorderStyle; color: string }
+  borderRight?: { style: BorderStyle; color: string }
+}
+
 export interface TableColumn {
   id: string
   width: number
   fieldType: TableFieldType
   title: string
   selectOptions?: string[]
+  format?: Partial<CellFormat>
 }
 
 export interface TableRow {
   id: string
   height: number
+  format?: Partial<CellFormat>
 }
 
 export interface TableCell {
@@ -65,6 +89,7 @@ export interface TableCell {
   mergeRowSpan?: number
   mergeColSpan?: number
   mergeOrigin?: { rowId: string; colId: string }
+  format?: Partial<CellFormat>
 }
 
 export interface TableSelection {
