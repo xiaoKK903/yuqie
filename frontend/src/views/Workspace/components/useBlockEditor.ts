@@ -480,7 +480,7 @@ export function useBlockEditor(modelValue: Block[]) {
     tempDiv.querySelectorAll('*').forEach(el => {
       const attrs = Array.from(el.attributes)
       attrs.forEach(attr => {
-        if (attr.name.startsWith('on') || attr.name === 'style' || attr.name === 'class' || attr.name === 'id') {
+        if (attr.name.startsWith('on')) {
           el.removeAttribute(attr.name)
         }
       })
@@ -489,26 +489,38 @@ export function useBlockEditor(modelValue: Block[]) {
     return tempDiv.innerHTML
   }
 
+  function getDirectChildren(parent: HTMLElement, tagName: string): HTMLElement[] {
+    return Array.from(parent.children).filter(
+      child => child.tagName.toLowerCase() === tagName
+    ) as HTMLElement[]
+  }
+
+  function extractPlainText(node: Node): string {
+    const tempDiv = document.createElement('div')
+    const clone = node.cloneNode(true)
+    tempDiv.appendChild(clone)
+    
+    const brs = tempDiv.querySelectorAll('br')
+    brs.forEach(br => {
+      const textNode = document.createTextNode('\n')
+      br.parentNode?.replaceChild(textNode, br)
+    })
+    
+    return tempDiv.textContent || ''
+  }
+
   function parseHtmlToBlocks(html: string): Block[] {
     const blocks: Block[] = []
     const tempDiv = document.createElement('div')
     tempDiv.innerHTML = sanitizeHtml(html)
 
-    function isTableCell(node: Node): boolean {
-      const parent = node.parentElement
-      return parent !== null && (parent.tagName === 'TD' || parent.tagName === 'TH')
-    }
-
-    function processNode(node: Node, listLevel: number = 0, listType: 'ul' | 'ol' | null = null) {
+    function processNode(node: Node, inTable: boolean = false) {
       if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent?.trim() || ''
-        if (text && !isTableCell(node)) {
-          const existingBlock = blocks[blocks.length - 1]
-          if (existingBlock && existingBlock.type === 'text' && listType === null) {
-            existingBlock.content += text
-          } else if (listType !== null) {
-          } else {
-            blocks.push(createBlock('text', text))
+        const text = node.textContent || ''
+        if (text && text.trim() && !inTable) {
+          const lastBlock = blocks[blocks.length - 1]
+          if (lastBlock && lastBlock.type === 'text') {
+            lastBlock.content += text
           }
         }
         return
@@ -527,67 +539,64 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
 
-      if (tagName === 'br') {
-        if (listType === null) {
-          const lastBlock = blocks[blocks.length - 1]
-          if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content) {
-            blocks.push(createBlock('text', ''))
-          }
-        }
-        return
-      }
-
-      if (tagName === 'p' || tagName === 'div') {
-        const text = el.textContent?.trim() || ''
-        if (text && !isTableCell(el)) {
-          blocks.push(createBlock('text', text))
-        } else if (!isTableCell(el)) {
-          const childrenText = Array.from(el.childNodes)
-            .filter(n => n.nodeType === Node.TEXT_NODE)
-            .map(n => n.textContent)
-            .join('')
-            .trim()
-          if (childrenText) {
-            blocks.push(createBlock('text', childrenText))
-          }
-        }
-        el.childNodes.forEach(child => processNode(child, listLevel, listType))
+      if (inTable) {
         return
       }
 
       if (tagName === 'h1') {
-        blocks.push(createBlock('h1', el.textContent?.trim() || ''))
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          blocks.push(createBlock('h1', text))
+        }
         return
       }
       if (tagName === 'h2') {
-        blocks.push(createBlock('h2', el.textContent?.trim() || ''))
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          blocks.push(createBlock('h2', text))
+        }
         return
       }
       if (tagName === 'h3') {
-        blocks.push(createBlock('h3', el.textContent?.trim() || ''))
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          blocks.push(createBlock('h3', text))
+        }
         return
       }
       if (tagName === 'h4') {
-        blocks.push(createBlock('h4', el.textContent?.trim() || ''))
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          blocks.push(createBlock('h4', text))
+        }
         return
       }
       if (tagName === 'h5') {
-        blocks.push(createBlock('h5', el.textContent?.trim() || ''))
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          blocks.push(createBlock('h5', text))
+        }
         return
       }
       if (tagName === 'h6') {
-        blocks.push(createBlock('h6', el.textContent?.trim() || ''))
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          blocks.push(createBlock('h6', text))
+        }
         return
       }
 
       if (tagName === 'blockquote') {
-        blocks.push(createBlock('quote', el.textContent?.trim() || ''))
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          blocks.push(createBlock('quote', text))
+        }
         return
       }
 
-      if (tagName === 'pre' || tagName === 'code') {
+      if (tagName === 'pre') {
         const text = el.textContent || ''
-        if (text.trim()) {
+        if (text) {
           const codeBlock = createBlock('code', text)
           codeBlock.meta = { language: 'plaintext' }
           blocks.push(codeBlock)
@@ -600,19 +609,54 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
 
-      if (tagName === 'ul' || tagName === 'ol') {
-        const newListType: 'ul' | 'ol' = tagName === 'ul' ? 'ul' : 'ol'
-        el.querySelectorAll(':scope > li').forEach((li, index) => {
+      if (tagName === 'ul') {
+        const lis = getDirectChildren(el, 'li')
+        lis.forEach(li => {
           const liText = li.textContent?.trim() || ''
-          const blockType = newListType === 'ul' ? 'bullet' : 'numbered'
+          if (liText) {
+            blocks.push(createBlock('bullet', liText))
+          }
           
-          const listBlock = createBlock(blockType, liText)
-          blocks.push(listBlock)
-          
-          li.querySelectorAll(':scope > ul, :scope > ol').forEach(nestedList => {
-            processNode(nestedList, listLevel + 1, newListType === 'ul' ? 'ul' : 'ol')
-          })
+          const nestedUls = getDirectChildren(li, 'ul')
+          const nestedOls = getDirectChildren(li, 'ol')
+          nestedUls.forEach(nested => processNode(nested, inTable))
+          nestedOls.forEach(nested => processNode(nested, inTable))
         })
+        return
+      }
+
+      if (tagName === 'ol') {
+        const lis = getDirectChildren(el, 'li')
+        lis.forEach(li => {
+          const liText = li.textContent?.trim() || ''
+          if (liText) {
+            blocks.push(createBlock('numbered', liText))
+          }
+          
+          const nestedUls = getDirectChildren(li, 'ul')
+          const nestedOls = getDirectChildren(li, 'ol')
+          nestedUls.forEach(nested => processNode(nested, inTable))
+          nestedOls.forEach(nested => processNode(nested, inTable))
+        })
+        return
+      }
+
+      if (tagName === 'p' || tagName === 'div') {
+        const text = extractPlainText(el).trim()
+        if (text) {
+          const lines = text.split('\n').filter(l => l.trim())
+          if (lines.length === 1) {
+            blocks.push(createBlock('text', lines[0]))
+          } else {
+            lines.forEach(line => {
+              blocks.push(createBlock('text', line.trim()))
+            })
+          }
+        }
+        return
+      }
+
+      if (tagName === 'br') {
         return
       }
 
@@ -620,7 +664,33 @@ export function useBlockEditor(modelValue: Block[]) {
         return
       }
 
-      el.childNodes.forEach(child => processNode(child, listLevel, listType))
+      if (tagName === 'span' || tagName === 'strong' || tagName === 'b' || 
+          tagName === 'em' || tagName === 'i' || tagName === 'u' ||
+          tagName === 'a' || tagName === 'font' || tagName === 'mark') {
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          const lastBlock = blocks[blocks.length - 1]
+          if (lastBlock && lastBlock.type === 'text') {
+            lastBlock.content += text
+          }
+        }
+        el.childNodes.forEach(child => processNode(child, inTable))
+        return
+      }
+
+      if (tagName.startsWith('o:') || tagName.startsWith('w:')) {
+        const text = el.textContent?.trim() || ''
+        if (text) {
+          const lastBlock = blocks[blocks.length - 1]
+          if (lastBlock && lastBlock.type === 'text') {
+            lastBlock.content += text
+          }
+        }
+        el.childNodes.forEach(child => processNode(child, inTable))
+        return
+      }
+
+      el.childNodes.forEach(child => processNode(child, inTable))
     }
 
     function parseTableToBlock(tableEl: HTMLElement): Block | null {
@@ -707,7 +777,8 @@ export function useBlockEditor(modelValue: Block[]) {
     if (blocks.length === 0) {
       const plainText = tempDiv.textContent?.trim() || ''
       if (plainText) {
-        plainText.split('\n').forEach(line => {
+        const lines = plainText.split(/\r?\n|\r/)
+        lines.forEach(line => {
           if (line.trim()) {
             blocks.push(createBlock('text', line.trim()))
           }
